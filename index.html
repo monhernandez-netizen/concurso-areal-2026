@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="no-referrer">
+<title>Concurso Literario Areal 2026</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<script>
+  // pdf.js: extraer el texto de un PDF en el navegador (para el botón "Escuchar")
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc =
+      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+  async function extraerTextoPDF(file) {
+    if (!window.pdfjsLib) return '';
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let texto = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const content = await page.getTextContent();
+      texto += content.items.map((it) => it.str).join(' ') + '\n\n';
+    }
+    return texto.replace(/[ \t]+/g, ' ').trim();
+  }
+
+  // Lee un texto en voz alta con la voz del dispositivo, en trozos cortos
+  // (algunos navegadores cortan los textos largos si van de una sola vez).
+  function hablarTexto(texto, onFin) {
+    if (!('speechSynthesis' in window)) { onFin && onFin(); return; }
+    window.speechSynthesis.cancel();
+    const partes = texto.match(/[^.!?\n]+[.!?\n]*/g) || [texto];
+    const trozos = [];
+    let cur = '';
+    for (const p of partes) {
+      if ((cur + p).length > 200) { if (cur.trim()) trozos.push(cur.trim()); cur = p; }
+      else cur += p;
+    }
+    if (cur.trim()) trozos.push(cur.trim());
+    let i = 0;
+    const siguiente = () => {
+      if (i >= trozos.length) { onFin && onFin(); return; }
+      const u = new SpeechSynthesisUtterance(trozos[i++]);
+      u.lang = 'es-AR';
+      u.rate = 0.98;
+      u.onend = siguiente;
+      u.onerror = () => { onFin && onFin(); };
+      window.speechSynthesis.speak(u);
+    };
+    siguiente();
+  }
+  function pararLectura() {
+    if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+  }
+
+  // Genera un QR (PNG data URL) a partir de un texto/URL.
+  function qrDataURL(texto, cellSize, margin) {
+    const qr = qrcode(0, 'M');
+    qr.addData(texto);
+    qr.make();
+    return qr.createDataURL(cellSize || 6, margin || 12);
+  }
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #F4FAFB;
+    --ink: #1F2A33;
+    --ink-soft: #6B818A;
+    --teal: #0B8A9E;
+    --teal-deep: #086E7D;
+    --teal-light: #E3F5F8;
+    --magenta: #C23B84;
+    --magenta-light: #FBE7F1;
+    --green: #3FA05C;
+    --green-light: #E6F6EA;
+    --amber: #D99A2B;
+    --amber-light: #FDF1DD;
+    --gray-light: #EEF3F4;
+  }
+  body { background: var(--bg); color: var(--ink); font-family: 'Nunito', system-ui, sans-serif; }
+  .display { font-family: 'Baloo 2', sans-serif; }
+  .card { background: white; border-radius: 20px; box-shadow: 0 2px 10px rgba(31,42,51,0.06); }
+  .chip { border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; }
+  .btn-fill { background: var(--teal); color: white; font-weight: 800; padding: 0.75rem 1.5rem; border-radius: 999px; transition: transform 0.1s, background 0.15s; }
+  .btn-fill:hover { background: var(--teal-deep); transform: translateY(-1px); }
+  .btn-fill:disabled { background: #C7D3D6; cursor: default; transform: none; }
+  .btn-ghost { border: 2px solid var(--teal); color: var(--teal); font-weight: 800; padding: 0.7rem 1.4rem; border-radius: 999px; }
+  .icon-circle { width: 44px; height: 44px; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
+  .nav-pill { border-radius: 999px; padding: 0.55rem 1.2rem; font-weight: 700; color: var(--ink-soft); }
+  .nav-pill.active { background: var(--teal); color: white; }
+  input[type=text], select, textarea {
+    border: 2px solid var(--gray-light); background: white; padding: 0.7rem 1rem;
+    border-radius: 14px; width: 100%; font-family: 'Nunito', sans-serif; font-weight: 600;
+  }
+  input[type=text]:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
+  label { font-size: 0.85rem; color: var(--ink-soft); font-weight: 700; display: block; margin-bottom: 0.4rem; }
+  .step-circle { width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; }
+  [x-cloak] { display: none !important; }
+</style>
+</head>
+<body x-data="app()" class="min-h-screen pb-16">
+
+  <!-- Barra institucional -->
+  <div class="bg-white relative overflow-hidden">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-4">
+        <p class="text-xs font-bold leading-tight" style="color: var(--teal);">DIRECCIÓN GENERAL DE<br>CULTURA Y EDUCACIÓN</p>
+        <div class="w-px h-8" style="background: var(--gray-light);"></div>
+        <img src="logo-pba.jpg" alt="Provincia de Buenos Aires" width="46" height="46" style="border-radius:999px;flex-shrink:0;"
+             onerror="this.style.display='none'">
+        <p class="text-sm">
+          <span style="color: var(--ink-soft);" class="font-medium">Gobierno de la Provincia de</span><br>
+          <span class="font-extrabold text-lg" style="color: var(--teal);">Buenos Aires</span>
+        </p>
+      </div>
+    </div>
+    <div class="flex h-1.5">
+      <div class="w-2/5" style="background: var(--magenta);"></div>
+      <div class="flex-1" style="background: var(--teal);"></div>
+    </div>
+  </div>
+
+  <!-- Aviso -->
+  <div class="text-center text-sm py-2 px-4 font-semibold" style="background: var(--amber-light); color: #8A6417;">
+    🔧 Plataforma en período de pruebas.
+  </div>
+
+  <!-- Encabezado -->
+  <header class="max-w-5xl mx-auto px-6 pt-8 pb-4 text-center">
+    <div class="mx-auto mb-4 rounded-full flex items-center justify-center" style="width:64px;height:64px;background:var(--teal-light);">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--teal-deep)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 10 12 5 2 10l10 5 10-5Z"/>
+        <path d="M6 12v5c0 1 2.5 3 6 3s6-2 6-3v-5"/>
+        <path d="M22 10v6"/>
+      </svg>
+    </div>
+    <h1 class="display text-3xl md:text-4xl font-extrabold" style="color: var(--teal-deep);">🏆 Concurso Literario Areal 2026</h1>
+    <p class="mt-2" style="color: var(--ink-soft);">Compartí lo que tenés para contar</p>
+  </header>
+
+  <!-- Selector de vista (solo visible con sesión iniciada) -->
+  <nav class="max-w-5xl mx-auto px-6 flex justify-center items-center gap-2 mb-8 flex-wrap" x-show="escuelaLogueada || sesionEmail" x-cloak>
+    <button x-show="escuelaLogueada" @click="vista = 'escuela'; cargarMisProducciones()" :class="vista === 'escuela' ? 'nav-pill active' : 'nav-pill'">📥 Cargar obra</button>
+    <button x-show="sesionEmail" @click="vista = 'publico'; cargarObrasPublico()" :class="vista === 'publico' ? 'nav-pill active' : 'nav-pill'">🗳️ Votar y ver ranking</button>
+    <button x-show="esAdmin" @click="vista = 'admin'; entrarPanelAdmin()" :class="vista === 'admin' ? 'nav-pill active' : 'nav-pill'">⚙️ Administración</button>
+  </nav>
+
+  <main class="max-w-5xl mx-auto px-6">
+
+    <!-- ============ PORTADA DE INICIO ============ -->
+    <section x-show="vista === 'inicio'" x-cloak class="max-w-md mx-auto">
+      <!-- Acceso principal: votante -->
+      <div class="card p-6">
+        <template x-if="!enlaceEnviado">
+          <div>
+            <div class="text-3xl mb-2">🗳️</div>
+            <h3 class="display font-extrabold text-lg mb-1">Quiero ver y votar</h3>
+            <p class="text-sm mb-4" style="color: var(--ink-soft);">Ingresá tu mail y te mandamos un enlace para entrar, sin contraseña.</p>
+            <input type="text" placeholder="tu@mail.com" x-model="emailVotante" @keyup.enter="enviarEnlaceVotante()" class="mb-3">
+            <p x-show="errorVotante" x-text="errorVotante" class="text-xs font-bold mb-3" style="color: var(--magenta);"></p>
+            <button class="btn-fill w-full" @click="enviarEnlaceVotante()" :disabled="cargandoVotante || !emailVotante">
+              <span x-text="cargandoVotante ? 'Enviando…' : 'Enviarme el enlace'"></span>
+            </button>
+          </div>
+        </template>
+        <template x-if="enlaceEnviado">
+          <div class="text-center py-4">
+            <div class="text-3xl mb-2">📬</div>
+            <p class="font-extrabold mb-1">¡Revisá tu correo!</p>
+            <p class="text-sm" style="color: var(--ink-soft);">Te mandamos un enlace a <b x-text="emailVotante"></b>. Hacé clic ahí para entrar.</p>
+          </div>
+        </template>
+      </div>
+
+      <!-- Acceso secundario: escuela por código manual (el camino normal es el enlace/QR) -->
+      <div class="mt-4 text-center">
+        <button x-show="!mostrarCodigoEscuela" @click="mostrarCodigoEscuela = true"
+                class="text-sm font-bold underline" style="color: var(--ink-soft);">
+          🏫 Sos una escuela y tenés un código
+        </button>
+        <div x-show="mostrarCodigoEscuela" x-cloak class="card p-5 mt-2 text-left">
+          <h3 class="display font-extrabold mb-1">Acceso de escuela</h3>
+          <p class="text-xs mb-3" style="color: var(--ink-soft);">
+            Lo normal es entrar con el enlace (o el QR) que te enviamos. Si no lo tenés a mano, escribí acá el código de respaldo.
+          </p>
+          <input type="text" placeholder="Código de escuela" x-model="codigoEscuela" @keyup.enter="ingresarConCodigo()" class="mb-3">
+          <p x-show="errorEscuela" x-text="errorEscuela" class="text-xs font-bold mb-3" style="color: var(--magenta);"></p>
+          <button class="btn-fill w-full" @click="ingresarConCodigo()" :disabled="cargandoEscuela || !codigoEscuela">
+            <span x-text="cargandoEscuela ? 'Verificando…' : 'Ingresar'"></span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VISTA ESCUELA ============ -->
+    <section x-show="vista === 'escuela'" x-cloak>
+      <div class="card p-5 mb-6 flex items-center gap-3" style="background: var(--teal-light);">
+        <div class="icon-circle" style="background: white;">🏫</div>
+        <div class="flex-1">
+          <p class="text-xs font-bold" style="color: var(--ink-soft);">SESIÓN INICIADA COMO</p>
+          <p class="font-extrabold text-lg display" x-text="escuelaNombre"></p>
+        </div>
+        <button class="text-xs font-bold" style="color: var(--ink-soft);" @click="salirEscuela()">Salir</button>
+      </div>
+
+      <div class="grid md:grid-cols-2 gap-6">
+        <!-- Formulario por pasos -->
+        <div class="card p-6">
+          <h3 class="display font-extrabold text-xl mb-1">Nueva obra</h3>
+          <p class="text-sm mb-5" style="color: var(--ink-soft);">Paso <span x-text="pasoCarga"></span> de 3</p>
+
+          <div class="flex items-center gap-2 mb-6">
+            <template x-for="n in [1,2,3]" :key="n">
+              <div class="flex items-center gap-2 flex-1">
+                <div class="step-circle" :style="pasoCarga >= n ? 'background:var(--teal);color:white' : 'background:var(--gray-light);color:var(--ink-soft)'" x-text="n"></div>
+                <div class="flex-1 h-1 rounded-full" x-show="n < 3" :style="pasoCarga > n ? 'background:var(--teal)' : 'background:var(--gray-light)'"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Paso 1: Datos -->
+          <div x-show="pasoCarga === 1" class="space-y-4">
+            <div>
+              <label>🏅 Nivel</label>
+              <select x-model="form.nivel" @change="form.curso_division = ''">
+                <option value="nivel_1">Nivel 1 (1.º y 2.º año)</option>
+                <option value="nivel_2">Nivel 2 (3.º y 4.º año)</option>
+                <option value="nivel_3">Nivel 3 (5.º y 6.º año)</option>
+              </select>
+            </div>
+            <div>
+              <label>🎓 Curso y división</label>
+              <select x-model="form.curso_division">
+                <option value="">Elegí el curso…</option>
+                <template x-for="c in cursosDeNivel(form.nivel)" :key="c">
+                  <option :value="c" x-text="c"></option>
+                </template>
+              </select>
+            </div>
+            <div>
+              <label>📝 Título de la obra</label>
+              <input type="text" placeholder="Ej: La casa de los álamos" x-model="form.titulo">
+            </div>
+            <div>
+              <label>👩‍🏫 Docente responsable</label>
+              <input type="text" placeholder="Nombre y apellido" x-model="form.docente_responsable">
+            </div>
+            <button class="btn-fill w-full mt-2" @click="if (paso1Valido()) pasoCarga = 2" :disabled="!paso1Valido()">Siguiente →</button>
+          </div>
+
+          <!-- Paso 2: Autores -->
+          <div x-show="pasoCarga === 2" class="space-y-4">
+            <label>✍️ ¿Quiénes escribieron esta obra?</label>
+            <p class="text-xs -mt-2" style="color: var(--ink-soft);">Nombre y apellido reales (los ven solo la escuela y la organización). El seudónimo es opcional: si lo ponés, es lo único que se muestra en público.</p>
+            <template x-for="(a, i) in form.autores" :key="i">
+              <div class="p-3 rounded-2xl space-y-2" style="background: var(--gray-light);">
+                <div class="flex justify-between items-center">
+                  <span class="text-xs font-bold" style="color: var(--ink-soft);" x-text="'Autor ' + (i + 1)"></span>
+                  <button x-show="form.autores.length > 1" @click="form.autores.splice(i, 1)" class="text-xs font-bold" style="color: var(--magenta);">Quitar</button>
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                  <input type="text" placeholder="Nombre real" x-model="a.nombre">
+                  <input type="text" placeholder="Apellido real" x-model="a.apellido">
+                </div>
+                <input type="text" placeholder="Seudónimo público (opcional)" x-model="a.seudonimo">
+              </div>
+            </template>
+            <button @click="form.autores.push({ nombre: '', apellido: '', seudonimo: '' })" class="text-sm font-bold" style="color: var(--teal);">+ Agregar otro autor</button>
+            <div class="flex gap-3 mt-4">
+              <button class="btn-ghost flex-1" @click="pasoCarga = 1">← Atrás</button>
+              <button class="btn-fill flex-1" @click="if (paso2Valido()) pasoCarga = 3" :disabled="!paso2Valido()">Siguiente →</button>
+            </div>
+          </div>
+
+          <!-- Paso 3: PDF -->
+          <div x-show="pasoCarga === 3" class="space-y-4">
+            <label>📄 El PDF de la obra</label>
+            <p class="text-xs -mt-2" style="color: var(--ink-soft);">Que sea un PDF de texto (hecho en Word/Docs), no una foto escaneada — si no, no va a tener opción de "Escuchar". Máximo 15 MB.</p>
+
+            <label class="card p-5 text-center cursor-pointer block" style="border: 2px dashed var(--gray-light); box-shadow:none;">
+              <div class="text-3xl mb-1">📄</div>
+              <p class="text-sm font-bold" x-text="pdfNombre || 'Elegir archivo PDF'"></p>
+              <input type="file" accept="application/pdf" class="hidden" @change="elegirPdf($event)">
+            </label>
+
+            <p x-show="extrayendoTexto" class="text-xs font-bold" style="color: var(--ink-soft);">Leyendo el texto del PDF…</p>
+            <p x-show="pdfFile && !extrayendoTexto && pdfTexto" class="text-xs font-bold" style="color: var(--green);" x-text="'✓ Texto leído (' + pdfTexto.length + ' caracteres) — va a tener audio.'"></p>
+            <p x-show="pdfFile && !extrayendoTexto && !pdfTexto" class="text-xs font-bold" style="color: var(--amber);">⚠️ No se pudo leer texto de este PDF (¿es escaneado?). La obra se puede enviar igual, pero no va a tener "Escuchar".</p>
+
+            <p x-show="envioMsg" x-text="envioMsg" class="text-sm font-bold p-2 rounded-xl"
+               :style="envioError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
+
+            <div class="flex gap-3 mt-4">
+              <button class="btn-ghost flex-1" @click="pasoCarga = 2" :disabled="enviando">← Atrás</button>
+              <button class="btn-fill flex-1" @click="enviarProduccion()" :disabled="enviando || !pdfFile || extrayendoTexto">
+                <span x-text="enviando ? 'Enviando…' : '🚀 Enviar obra'"></span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tus producciones -->
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="display font-extrabold text-xl">Tus obras</h3>
+            <button class="text-sm font-bold" style="color: var(--teal);" @click="cargarMisProducciones()">↻</button>
+          </div>
+
+          <p x-show="!misProduccionesCargadas" class="text-sm" style="color: var(--ink-soft);">Cargando…</p>
+          <p x-show="misProduccionesCargadas && misProducciones.length === 0" class="card p-6 text-sm text-center" style="color: var(--ink-soft);">Todavía no cargaste ninguna obra.</p>
+
+          <template x-for="p in misProducciones" :key="p.id">
+            <div class="card p-4">
+              <p class="font-extrabold" x-text="p.titulo"></p>
+              <p class="text-xs mb-2" style="color: var(--ink-soft);" x-text="nombreNivel(p.nivel)"></p>
+              <span class="chip" :style="colorEstado(p.estado)" x-text="etiquetaEstado(p.estado)"></span>
+              <span class="text-lg ml-2" :style="p.pdf_path ? '' : 'opacity:0.25'" title="PDF">📄</span>
+
+              <p x-show="p.motivo" class="text-xs mt-2 p-2 rounded-xl" style="background: var(--amber-light); color: #8A6417;" x-text="'💬 Corrección pedida: ' + p.motivo"></p>
+
+              <label x-show="!p.pdf_path && (p.estado === 'pendiente' || p.estado === 'correccion_solicitada')"
+                     class="text-xs font-bold cursor-pointer inline-block mt-2" style="color: var(--teal);">
+                ⬆️ Subir el PDF que falta
+                <input type="file" accept="application/pdf" class="hidden" @change="reintentarPdf(p, $event)">
+              </label>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VISTA PÚBLICO ============ -->
+    <section x-show="vista === 'publico'" x-cloak>
+      <div class="flex items-center justify-between mb-4 text-sm">
+        <span style="color: var(--ink-soft);">Conectado como <b x-text="sesionEmail"></b> <span x-show="esAdmin">👑</span></span>
+        <button class="font-bold" style="color: var(--ink-soft);" @click="salirVotante()">Salir</button>
+      </div>
+
+      <!-- Cargando -->
+      <div x-show="!obrasCargadas" class="text-center py-16 text-sm" style="color: var(--ink-soft);">Cargando obras…</div>
+
+      <!-- Selección de nivel -->
+      <div x-show="obrasCargadas && !nivelPublico" class="max-w-3xl mx-auto text-center">
+        <h2 class="display font-extrabold text-2xl mb-1">¿Qué nivel querés ver?</h2>
+        <p class="text-sm mb-10" style="color: var(--ink-soft);">Elegí un nivel para leer las obras y votar tu favorita. Podés votar una obra por nivel.</p>
+        <div class="flex flex-col sm:flex-row justify-center items-center gap-6">
+          <template x-for="n in ['nivel_1','nivel_2','nivel_3']" :key="n">
+            <button @click="nivelPublico = n" class="card p-8 text-center hover:-translate-y-1 transition-transform w-full sm:w-48">
+              <div class="mx-auto mb-3 rounded-full flex items-center justify-center font-extrabold text-2xl" :style="`width:72px;height:72px;color:white;background:${colorNivel(n)}`" x-text="n.slice(-1)"></div>
+              <p class="font-extrabold text-lg" x-text="nombreNivel(n)"></p>
+              <p class="text-xs mt-1" style="color: var(--ink-soft);" x-text="obrasDeNivel(n).length + ' obras'"></p>
+            </button>
+          </template>
+        </div>
+      </div>
+
+      <!-- Contenido del nivel elegido -->
+      <div x-show="obrasCargadas && nivelPublico" x-cloak>
+        <button @click="nivelPublico = null; votoError=''; pararLectura(); reproduciendoId=null" class="text-sm font-bold mb-4" style="color: var(--teal);">‹ Cambiar de nivel</button>
+
+        <p x-show="votoError" x-text="votoError" class="card p-3 mb-4 text-sm font-bold" style="background: var(--magenta-light); color: var(--magenta);"></p>
+
+        <div x-show="obrasDeNivel(nivelPublico).length === 0" class="card p-8 text-center text-sm" style="color: var(--ink-soft);">
+          Todavía no hay obras aprobadas en este nivel.
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-8" x-show="obrasDeNivel(nivelPublico).length > 0">
+          <div class="md:col-span-2 grid sm:grid-cols-2 gap-5">
+            <template x-for="o in obrasDeNivel(nivelPublico)" :key="o.produccion_id">
+              <div class="card">
+                <div class="h-20 rounded-t-[20px]" :style="`background:${colorNivel(o.nivel)}`"></div>
+                <div class="p-4">
+                  <p class="font-extrabold display" x-text="o.titulo"></p>
+                  <p class="text-xs" style="color: var(--ink-soft);" x-text="o.escuela_nombre"></p>
+                  <p class="text-xs mb-3" style="color: var(--ink-soft);" x-show="o.autores_publicos" x-text="'✍️ ' + o.autores_publicos"></p>
+
+                  <div class="flex gap-2 mb-3">
+                    <button x-show="o.tiene_pdf" @click="leerObra(o)" :disabled="leyendoId === o.produccion_id"
+                            class="chip" style="background: var(--teal-light); color: var(--teal-deep);">
+                      <span x-text="leyendoId === o.produccion_id ? 'Abriendo…' : '📖 Leer'"></span>
+                    </button>
+                    <button x-show="o.tiene_audio" @click="escucharObra(o)"
+                            class="chip" :style="reproduciendoId === o.produccion_id ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--teal-light);color:var(--teal-deep)'">
+                      <span x-text="reproduciendoId === o.produccion_id ? '⏹ Parar' : '🔊 Escuchar'"></span>
+                    </button>
+                  </div>
+
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="chip" style="background: var(--gray-light); color: var(--ink-soft);">❤️ <span x-text="o.votos_total"></span></span>
+                    <div class="flex items-center gap-2 relative">
+                      <button class="icon-circle" style="background: var(--teal-light); width:38px; height:38px;" @click="o._compartiendo = !o._compartiendo" title="Compartir">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--teal-deep)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>
+                        </svg>
+                      </button>
+                      <button class="btn-fill text-sm !py-2 !px-4"
+                              @click="votar(o)"
+                              :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel)">
+                        <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel) ? 'Ya votaste' : 'Votar'))"></span>
+                      </button>
+                      <div x-show="o._compartiendo" @click.outside="o._compartiendo = false" x-cloak
+                           class="card absolute bottom-12 right-0 p-2 w-52 z-10">
+                        <button @click="compartirWhatsApp(o); o._compartiendo = false" class="w-full text-left flex items-center gap-2 p-2 rounded-xl text-sm font-bold hover:bg-gray-50">
+                          <span class="text-lg">💬</span> Compartir por WhatsApp
+                        </button>
+                        <button @click="copiarEnlace(o)" class="w-full text-left flex items-center gap-2 p-2 rounded-xl text-sm font-bold hover:bg-gray-50">
+                          <span class="text-lg">🔗</span> <span x-text="o._copiado ? '¡Copiado!' : 'Copiar enlace'"></span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+          </div>
+
+          <div class="card p-5 h-fit">
+            <h3 class="display font-extrabold text-lg mb-1">🏆 Ranking</h3>
+            <p class="text-xs font-bold mb-3" style="color: var(--ink-soft);" x-text="nombreNivel(nivelPublico)"></p>
+            <ol class="space-y-3">
+              <template x-for="(o, i) in rankingDeNivel(nivelPublico)" :key="o.produccion_id">
+                <li class="flex items-center gap-3">
+                  <div class="step-circle" :style="i===0 ? 'background:var(--amber);color:white' : 'background:var(--gray-light);color:var(--ink-soft)'" x-text="i+1"></div>
+                  <div class="flex-1">
+                    <p class="text-sm font-bold" x-text="o.titulo"></p>
+                    <p class="text-xs" style="color: var(--ink-soft);" x-text="o.votos_total + ' votos'"></p>
+                  </div>
+                </li>
+              </template>
+            </ol>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ VISTA ADMIN ============ -->
+    <section x-show="vista === 'admin'" x-cloak>
+
+      <!-- Sub-navegación del panel -->
+      <div class="flex gap-2 mb-6 flex-wrap">
+        <button @click="adminTab='obras'; cargarObrasAdmin()" :class="adminTab==='obras' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">📚 Obras</button>
+        <button @click="adminTab='escuelas'; cargarEscuelas()" :class="adminTab==='escuelas' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">🏫 Escuelas</button>
+        <button @click="adminTab='votacion'; cargarConfigVotacion()" :class="adminTab==='votacion' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">🗳️ Votación</button>
+        <button @click="adminTab='admins'; cargarAdmins()" :class="adminTab==='admins' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">👥 Administradores</button>
+      </div>
+
+      <!-- ===== ESCUELAS ===== -->
+      <div x-show="adminTab==='escuelas'" x-cloak>
+        <div class="card p-5 mb-4">
+          <label>Dirección del sitio publicado</label>
+          <p class="text-xs mb-2" style="color: var(--ink-soft);">Los enlaces y QR se arman con esta dirección. Mientras probás en tu compu podés dejarla así; cuando publiques el sitio, poné acá la dirección definitiva y guardá.</p>
+          <div class="flex gap-2">
+            <input type="text" x-model="baseUrlSitio" placeholder="https://...">
+            <button class="btn-fill shrink-0" @click="guardarBaseUrl()">Guardar</button>
+          </div>
+        </div>
+
+        <div class="card p-5 mb-4">
+          <label>Agregar una escuela</label>
+          <div class="flex gap-2">
+            <input type="text" x-model="nuevaEscuelaNombre" placeholder='Ej: Escuela N.º 12 "Almafuerte" — San Justo' @keyup.enter="crearEscuela()">
+            <button class="btn-fill shrink-0" @click="crearEscuela()" :disabled="creandoEscuela || !nuevaEscuelaNombre">
+              <span x-text="creandoEscuela ? '…' : 'Crear'"></span>
+            </button>
+          </div>
+          <p x-show="escuelasMsg" x-text="escuelasMsg" class="text-sm font-bold mt-3"
+             :style="escuelasError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+        </div>
+
+        <div x-show="!escuelasCargadas" class="text-center py-8 text-sm" style="color: var(--ink-soft);">Cargando…</div>
+        <div x-show="escuelasCargadas && escuelas.length === 0" class="card p-8 text-center text-sm" style="color: var(--ink-soft);">Todavía no hay escuelas cargadas.</div>
+
+        <div class="space-y-3" x-show="escuelasCargadas">
+          <template x-for="e in escuelas" :key="e.id">
+            <div class="card p-4">
+              <div class="flex items-start gap-3 flex-wrap">
+                <div class="flex-1 min-w-0">
+                  <p class="font-extrabold" x-text="e.nombre"></p>
+                  <p class="text-xs break-all" style="color: var(--ink-soft);" x-text="enlaceEscuela(e)"></p>
+                </div>
+                <span class="chip" :style="e.activa ? 'background:var(--green-light);color:var(--green)' : 'background:var(--gray-light);color:var(--ink-soft)'"
+                      x-text="e.activa ? 'Activa' : 'Inactiva'"></span>
+              </div>
+
+              <div class="flex gap-2 mt-3 flex-wrap">
+                <button class="chip" style="background: var(--teal-light); color: var(--teal-deep);" @click="copiarEnlaceEscuela(e)">
+                  <span x-text="e._copiado ? '¡Copiado!' : '🔗 Copiar enlace'"></span>
+                </button>
+                <button class="chip" style="background: var(--teal-light); color: var(--teal-deep);" @click="qrVisible = (qrVisible === e.id ? null : e.id)">
+                  <span x-text="qrVisible === e.id ? 'Ocultar QR' : '▦ Ver QR'"></span>
+                </button>
+                <button class="chip" style="background: var(--teal-light); color: var(--teal-deep);" @click="descargarQR(e)">⬇️ Descargar QR</button>
+                <button class="chip" style="background: var(--gray-light); color: var(--ink-soft);" @click="toggleActivaEscuela(e)" x-text="e.activa ? 'Desactivar' : 'Activar'"></button>
+                <button class="chip" style="background: var(--magenta-light); color: var(--magenta);" @click="regenerarEscuela(e)">Regenerar acceso</button>
+              </div>
+
+              <div x-show="qrVisible === e.id" x-cloak class="mt-3 text-center">
+                <img :src="qrDeEscuela(e)" alt="QR" class="inline-block" style="width:200px;height:200px;">
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- ===== VOTACIÓN ===== -->
+      <div x-show="adminTab==='votacion'" x-cloak class="card p-6 max-w-lg">
+        <h3 class="display font-extrabold text-xl mb-1">Fechas de la votación</h3>
+        <p class="text-sm mb-5" style="color: var(--ink-soft);">
+          La votación se habilita automáticamente entre estas dos fechas. Si las dejás vacías, queda cerrada.
+        </p>
+        <div class="space-y-4">
+          <div>
+            <label>Apertura</label>
+            <input type="datetime-local" x-model="votAbre" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <div>
+            <label>Cierre</label>
+            <input type="datetime-local" x-model="votCierra" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <p x-show="votMsg" x-text="votMsg" class="text-sm font-bold" :style="votError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+          <div class="flex gap-3 flex-wrap">
+            <button class="btn-fill" @click="guardarConfigVotacion()" :disabled="votGuardando">
+              <span x-text="votGuardando ? 'Guardando…' : 'Guardar fechas'"></span>
+            </button>
+            <button class="btn-ghost" @click="votAbre=''; votCierra=''; guardarConfigVotacion()" :disabled="votGuardando">Cerrar votación ahora</button>
+          </div>
+          <p class="text-xs pt-2" style="color: var(--ink-soft);">
+            Estado en este momento: <b x-text="votEstadoActual"></b>
+          </p>
+        </div>
+      </div>
+
+      <!-- ===== ADMINISTRADORES ===== -->
+      <div x-show="adminTab==='admins'" x-cloak class="card p-6 max-w-lg">
+        <h3 class="display font-extrabold text-xl mb-1">Administradores</h3>
+        <p class="text-sm mb-5" style="color: var(--ink-soft);">
+          Para agregar a alguien, esa persona primero tiene que entrar una vez a la plataforma con su mail (desde "Quiero ver y votar"). Después la agregás acá.
+        </p>
+
+        <ul class="space-y-2 mb-6">
+          <template x-for="a in admins" :key="a.id">
+            <li class="flex items-center gap-3 p-3 rounded-2xl" style="background: var(--gray-light);">
+              <div class="flex-1 min-w-0">
+                <p class="text-sm font-bold truncate" x-text="a.nombre || a.email"></p>
+                <p class="text-xs truncate" style="color: var(--ink-soft);" x-text="a.email"></p>
+              </div>
+              <button x-show="a.id !== miId" @click="quitarAdmin(a)" class="text-xs font-bold shrink-0" style="color: var(--magenta);">Quitar</button>
+              <span x-show="a.id === miId" class="chip shrink-0" style="background:var(--teal-light); color:var(--teal-deep);">vos</span>
+            </li>
+          </template>
+          <li x-show="!adminsCargados" class="text-sm" style="color: var(--ink-soft);">Cargando…</li>
+          <li x-show="adminsCargados && admins.length === 0" class="text-sm" style="color: var(--ink-soft);">No se pudo cargar la lista.</li>
+        </ul>
+
+        <label>Agregar administrador por mail</label>
+        <div class="flex gap-2">
+          <input type="text" placeholder="mail@ejemplo.com" x-model="nuevoAdminMail" @keyup.enter="agregarAdmin()">
+          <button class="btn-fill shrink-0" @click="agregarAdmin()" :disabled="agregandoAdmin || !nuevoAdminMail">
+            <span x-text="agregandoAdmin ? '…' : 'Agregar'"></span>
+          </button>
+        </div>
+        <p x-show="adminMsg" x-text="adminMsg" class="text-sm font-bold mt-3" :style="adminError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+      </div>
+
+      <!-- ===== OBRAS (moderación) ===== -->
+      <div x-show="adminTab==='obras'" x-cloak>
+        <div class="card p-4 flex gap-3 mb-4 flex-wrap items-center">
+          <select class="!w-auto" x-model="filtroEscuela">
+            <option value="">Todas las escuelas</option>
+            <template x-for="e in escuelasLista" :key="e.id">
+              <option :value="e.id" x-text="e.nombre"></option>
+            </template>
+          </select>
+          <select class="!w-auto" x-model="filtroEstado">
+            <option value="">Todos los estados</option>
+            <option value="pendiente">Pendiente</option>
+            <option value="correccion_solicitada">Corrección solicitada</option>
+            <option value="aprobada">Aprobada</option>
+            <option value="rechazada">Rechazada</option>
+          </select>
+          <button class="text-sm font-bold" style="color: var(--teal);" @click="cargarObrasAdmin()">↻ Actualizar</button>
+        </div>
+
+        <p x-show="obrasMsg" x-text="obrasMsg" class="card p-3 mb-4 text-sm font-bold"
+           :style="obrasError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
+
+        <div x-show="!obrasAdminCargadas" class="text-center py-8 text-sm" style="color: var(--ink-soft);">Cargando obras…</div>
+        <div x-show="obrasAdminCargadas && obrasAdminFiltradas().length === 0" class="card p-8 text-center text-sm" style="color: var(--ink-soft);">
+          No hay obras que coincidan con el filtro.
+        </div>
+
+        <div class="space-y-3" x-show="obrasAdminCargadas">
+          <template x-for="o in obrasAdminFiltradas()" :key="o.id">
+            <div class="card p-4 flex items-center gap-4 flex-wrap">
+              <div class="flex-1 min-w-0">
+                <p class="font-extrabold" x-text="o.titulo"></p>
+                <p class="text-xs" style="color: var(--ink-soft);">
+                  <span x-text="o.escuela_nombre"></span> ·
+                  <span x-text="nombreNivel(o.nivel)"></span> ·
+                  <span x-text="o.curso_division"></span> ·
+                  <span x-text="o.docente_responsable"></span>
+                </p>
+              </div>
+              <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
+              <div class="flex gap-2">
+                <button class="icon-circle" style="background: var(--green-light);" @click="cambiarEstadoObra(o,'aprobada')" :disabled="obraAccion===o.id || o.estado==='aprobada'" title="Aprobar">✅</button>
+                <button class="icon-circle" style="background: var(--amber-light);" @click="cambiarEstadoObra(o,'correccion_solicitada')" :disabled="obraAccion===o.id" title="Pedir corrección">✏️</button>
+                <button class="icon-circle" style="background: var(--magenta-light);" @click="cambiarEstadoObra(o,'rechazada')" :disabled="obraAccion===o.id || o.estado==='rechazada'" title="Rechazar">❌</button>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="max-w-5xl mx-auto px-6 py-10 text-center text-sm" style="color: var(--ink-soft);">
+    Concurso Literario Areal 2026 · Memoria Verdad y Justicia
+  </footer>
+
+<script>
+function app() {
+  const SUPABASE_URL = 'https://cuzdkgzzogpikiefzlio.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN1emRrZ3p6b2dwaWtpZWZ6bGlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyMDcyOTgsImV4cCI6MjEwMzc4MzI5OH0.yMXoRKmO8f73_vdo3Zdl8TMITxo-p21heXBcZSMhUSo';
+  // El cliente arranca como anónimo. Cuando una escuela entra (por enlace/QR o por
+  // código manual), se reconstruye con su JWT para que TODAS las consultas viajen
+  // firmadas como esa escuela y las políticas RLS la reconozcan.
+  let supabaseClient = crearClienteSupabase();
+
+  function crearClienteSupabase(jwtEscuela) {
+    if (jwtEscuela) {
+      // Cliente de escuela: el JWT lo firmó login_escuela (no Supabase Auth/GoTrue),
+      // así que desactivamos el módulo de sesión y usamos ese token para todas las
+      // consultas. Evita llamadas inútiles a /auth/v1/user y warnings de sesión.
+      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+        accessToken: () => Promise.resolve(jwtEscuela),
+      });
+    }
+    // Cliente normal (anónimo / votante / admin), con manejo de sesión de Supabase Auth.
+    return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+
+  // Decodifica el contenido (payload) de un JWT sin verificar la firma.
+  // Solo se usa para leer datos ya confiables que puso login_escuela (el nombre).
+  function leerPayloadJWT(jwt) {
+    try {
+      const b64 = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const texto = decodeURIComponent(
+        atob(b64).split('').map((c) => '%' + c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+      );
+      return JSON.parse(texto);
+    } catch (e) {
+      return {};
+    }
+  }
+
+  return {
+    vista: 'inicio',
+    escuelaLogueada: false,
+    escuelaNombre: '',
+    mostrarCodigoEscuela: false,
+    codigoEscuela: '',
+    errorEscuela: '',
+    cargandoEscuela: false,
+    sesionEmail: '',
+    emailVotante: '',
+    errorVotante: '',
+    cargandoVotante: false,
+    enlaceEnviado: false,
+    esAdmin: false,
+
+    // --- Vista escuela: carga de obra + "Tus producciones" ---
+    pasoCarga: 1,
+    form: {
+      titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
+      autores: [{ nombre: '', apellido: '', seudonimo: '' }],
+    },
+    pdfFile: null,
+    pdfNombre: '',
+    pdfTexto: '',
+    extrayendoTexto: false,
+    enviando: false,
+    envioMsg: '',
+    envioError: false,
+    misProducciones: [],
+    misProduccionesCargadas: false,
+
+    // --- Vista pública (votar / ranking) ---
+    nivelPublico: null,           // 'nivel_1' | 'nivel_2' | 'nivel_3'
+    obras: [],
+    obrasCargadas: false,
+    votando: null,                // id de la obra que se está votando
+    votoError: '',
+    votadoNivel: {},              // { nivel_1: id_obra, ... } — recordatorio local (la base es la que manda)
+    leyendoId: null,              // obra cuyo PDF se está abriendo
+    reproduciendoId: null,        // obra que se está leyendo en voz alta
+
+    // --- Panel de admin ---
+    adminTab: 'votacion',
+    // Votación
+    votAbre: '',
+    votCierra: '',
+    votEstadoActual: '—',
+    votMsg: '',
+    votError: false,
+    votGuardando: false,
+    // Administradores
+    admins: [],
+    adminsCargados: false,
+    miId: '',
+    nuevoAdminMail: '',
+    agregandoAdmin: false,
+    adminMsg: '',
+    adminError: false,
+    // Obras (moderación)
+    obrasAdmin: [],
+    obrasAdminCargadas: false,
+    escuelasLista: [],
+    filtroEscuela: '',
+    filtroEstado: '',
+    obraAccion: null,
+    obrasMsg: '',
+    obrasError: false,
+    // Escuelas (alta + enlace + QR)
+    escuelas: [],
+    escuelasCargadas: false,
+    nuevaEscuelaNombre: '',
+    creandoEscuela: false,
+    escuelasMsg: '',
+    escuelasError: false,
+    baseUrlSitio: '',
+    qrVisible: null,
+
+    // Se ejecuta solo al cargar la página. Prioridad:
+    //   1) ?escuela=TOKEN en la URL (intención explícita: enlace/QR)
+    //   2) sesión personal ya activa (votante/admin) o recién llegada por enlace mágico
+    //   3) token de escuela guardado de una visita anterior
+    async init() {
+      const params = new URLSearchParams(window.location.search);
+      const tokenURL = (params.get('escuela') || '').trim();
+
+      // 1. Enlace/QR de escuela explícito: gana siempre
+      if (tokenURL) {
+        const ok = await this.entrarComoEscuela(tokenURL, { silencioso: false });
+        this.limpiarTokenDeLaURL();
+        if (ok) return;
+      }
+
+      // 2. ¿Hay sesión personal (o viene una del enlace mágico)?
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        this.sesionEmail = session.user.email;
+        await this.chequearSiEsAdmin();
+        if (this.vista === 'inicio') this.vista = 'publico';
+        if (this.vista === 'publico') this.cargarObrasPublico();
+        this._escucharAuth();
+        return;
+      }
+
+      // 3. Sin sesión personal: ¿había un token de escuela guardado?
+      const tokenGuardado = (localStorage.getItem('concurso_token_escuela') || '').trim();
+      if (tokenGuardado) {
+        const ok = await this.entrarComoEscuela(tokenGuardado, { silencioso: true });
+        if (ok) return;
+      }
+
+      this._escucharAuth();
+    },
+
+    // Escucha cambios de sesión de Supabase Auth (solo sobre el cliente normal).
+    _escucharAuth() {
+      supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+        if (session) {
+          this.sesionEmail = session.user.email;
+          await this.chequearSiEsAdmin();
+          if (this.vista === 'inicio') this.vista = 'publico';
+          if (this.vista === 'publico') this.cargarObrasPublico();
+        }
+      });
+    },
+
+    // Quita ?escuela=TOKEN de la barra de direcciones después de usarlo. El token
+    // queda guardado en localStorage, así que no se pierde el acceso; esto solo
+    // evita dejarlo visible en el historial del navegador.
+    limpiarTokenDeLaURL() {
+      const params = new URLSearchParams(window.location.search);
+      if (!params.has('escuela')) return;
+      params.delete('escuela');
+      const query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
+    },
+
+    // Pide el JWT de la escuela a login_escuela y reconstruye el cliente con él.
+    async entrarComoEscuela(token, { silencioso = false } = {}) {
+      this.errorEscuela = '';
+      this.cargandoEscuela = true;
+
+      // login_escuela es público (SECURITY DEFINER), así que sirve el cliente actual.
+      const { data: jwt, error } = await supabaseClient.rpc('login_escuela', { p_token: token });
+      this.cargandoEscuela = false;
+
+      if (error || !jwt) {
+        localStorage.removeItem('concurso_token_escuela');
+        if (!silencioso) {
+          this.errorEscuela = 'No pudimos validar el enlace o el código. Fijate que esté completo.';
+        }
+        return false;
+      }
+
+      supabaseClient = crearClienteSupabase(jwt);
+      this.escuelaNombre = leerPayloadJWT(jwt).escuela_nombre || 'Tu escuela';
+      localStorage.setItem('concurso_token_escuela', token);
+      localStorage.removeItem('concurso_jwt_escuela'); // clave vieja, ya no se usa
+      this.escuelaLogueada = true;
+      this.codigoEscuela = '';
+      this.mostrarCodigoEscuela = false;
+      this.vista = 'escuela';
+      this.cargarMisProducciones();
+      return true;
+    },
+
+    // Botón "Ingresar" del campo de código manual (respaldo).
+    ingresarConCodigo() {
+      const token = this.codigoEscuela.trim();
+      if (!token) return;
+      return this.entrarComoEscuela(token, { silencioso: false });
+    },
+
+    // ---------- Vista escuela: carga de obra ----------
+    cursosDeNivel(nivel) {
+      const anios = { nivel_1: [1, 2], nivel_2: [3, 4], nivel_3: [5, 6] }[nivel] || [];
+      const lista = [];
+      for (const a of anios) for (let d = 1; d <= 6; d++) lista.push(a + '°' + d + '°');
+      return lista;
+    },
+    paso1Valido() {
+      return this.form.titulo.trim() && this.form.curso_division.trim() && this.form.docente_responsable.trim();
+    },
+    paso2Valido() {
+      return this.form.autores.length > 0 &&
+        this.form.autores.every((a) => a.nombre.trim() && a.apellido.trim());
+    },
+
+    async elegirPdf(ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      this.envioMsg = ''; this.envioError = false;
+      if (file.type !== 'application/pdf') {
+        this.envioError = true; this.envioMsg = 'El archivo tiene que ser un PDF.';
+        ev.target.value = ''; return;
+      }
+      if (file.size > 15 * 1024 * 1024) {
+        this.envioError = true; this.envioMsg = 'El PDF no puede superar los 15 MB.';
+        ev.target.value = ''; return;
+      }
+      this.pdfFile = file;
+      this.pdfNombre = file.name;
+      this.pdfTexto = '';
+      this.extrayendoTexto = true;
+      try { this.pdfTexto = await extraerTextoPDF(file); }
+      catch (e) { this.pdfTexto = ''; }
+      this.extrayendoTexto = false;
+    },
+
+    async enviarProduccion() {
+      this.envioMsg = ''; this.envioError = false;
+      if (!this.paso1Valido()) { this.pasoCarga = 1; this.envioError = true; this.envioMsg = 'Faltan datos del paso 1.'; return; }
+      if (!this.paso2Valido()) { this.pasoCarga = 2; this.envioError = true; this.envioMsg = 'Cada autor necesita nombre y apellido reales.'; return; }
+      if (!this.pdfFile) { this.envioError = true; this.envioMsg = 'Falta elegir el PDF.'; return; }
+
+      this.enviando = true;
+
+      const { data: nuevoId, error: e1 } = await supabaseClient.rpc('crear_produccion', {
+        p_titulo: this.form.titulo,
+        p_curso_division: this.form.curso_division,
+        p_nivel: this.form.nivel,
+        p_docente_responsable: this.form.docente_responsable,
+        p_texto_extraido: this.pdfTexto || null,
+        p_autores: this.form.autores.map((a) => ({
+          nombre: a.nombre, apellido: a.apellido, seudonimo: a.seudonimo,
+        })),
+      });
+      if (e1) {
+        this.enviando = false; this.envioError = true;
+        this.envioMsg = 'No se pudo crear la obra: ' + e1.message;
+        return;
+      }
+
+      const { error: e2 } = await supabaseClient.storage.from('obras')
+        .upload(nuevoId + '.pdf', this.pdfFile, { contentType: 'application/pdf', upsert: true });
+      if (e2) {
+        this.enviando = false; this.envioError = true;
+        this.envioMsg = 'La obra se guardó pero falló la subida del PDF. Buscala en "Tus obras" y usá "Subir el PDF que falta".';
+        await this.cargarMisProducciones();
+        this.pasoCarga = 1;
+        this._limpiarFormulario();
+        return;
+      }
+
+      await supabaseClient.from('producciones').update({ pdf_path: nuevoId + '.pdf' }).eq('id', nuevoId);
+
+      this.enviando = false; this.envioError = false;
+      this.envioMsg = '✅ ¡Obra enviada! Queda pendiente de revisión.';
+      this._limpiarFormulario();
+      this.pasoCarga = 1;
+      await this.cargarMisProducciones();
+    },
+
+    _limpiarFormulario() {
+      this.form = {
+        titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
+        autores: [{ nombre: '', apellido: '', seudonimo: '' }],
+      };
+      this.pdfFile = null; this.pdfNombre = ''; this.pdfTexto = '';
+    },
+
+    async reintentarPdf(prod, ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (file.type !== 'application/pdf' || file.size > 15 * 1024 * 1024) {
+        alert('Tiene que ser un PDF de hasta 15 MB.'); return;
+      }
+      let texto = '';
+      try { texto = await extraerTextoPDF(file); } catch (e) {}
+      const { error } = await supabaseClient.storage.from('obras')
+        .upload(prod.id + '.pdf', file, { contentType: 'application/pdf', upsert: true });
+      if (error) { alert('No se pudo subir: ' + error.message); return; }
+      await supabaseClient.from('producciones')
+        .update({ pdf_path: prod.id + '.pdf', texto_extraido: texto || null })
+        .eq('id', prod.id);
+      await this.cargarMisProducciones();
+    },
+
+    async cargarMisProducciones() {
+      this.misProduccionesCargadas = false;
+      const [prodRes, histRes] = await Promise.all([
+        supabaseClient.from('producciones')
+          .select('id,titulo,nivel,estado,pdf_path,fecha_creacion')
+          .order('fecha_creacion', { ascending: false }),
+        supabaseClient.from('historial_estados')
+          .select('produccion_id,estado_nuevo,motivo,fecha')
+          .order('fecha', { ascending: false }),
+      ]);
+      const motivoPorProd = {};
+      for (const h of (histRes.data || [])) {
+        if (h.estado_nuevo === 'correccion_solicitada' && !(h.produccion_id in motivoPorProd)) {
+          motivoPorProd[h.produccion_id] = h.motivo;
+        }
+      }
+      this.misProducciones = (prodRes.data || []).map((p) => ({
+        ...p,
+        motivo: p.estado === 'correccion_solicitada' ? (motivoPorProd[p.id] || null) : null,
+      }));
+      this.misProduccionesCargadas = true;
+    },
+
+    async enviarEnlaceVotante() {
+      this.errorVotante = '';
+      this.cargandoVotante = true;
+      const { error } = await supabaseClient.auth.signInWithOtp({
+        email: this.emailVotante.trim(),
+        options: { emailRedirectTo: window.location.href.split('#')[0] },
+      });
+      this.cargandoVotante = false;
+
+      if (error) {
+        this.errorVotante = 'No pudimos enviar el enlace. Revisá el mail e intentá de nuevo.';
+        return;
+      }
+      this.enlaceEnviado = true;
+    },
+
+    async chequearSiEsAdmin() {
+      const { data, error } = await supabaseClient.rpc('is_admin');
+      this.esAdmin = !error && data === true;
+    },
+
+    // ---------- Panel de admin ----------
+    entrarPanelAdmin() {
+      if (this.adminTab === 'votacion') this.cargarConfigVotacion();
+      else if (this.adminTab === 'admins') this.cargarAdmins();
+      else if (this.adminTab === 'obras') this.cargarObrasAdmin();
+      else if (this.adminTab === 'escuelas') this.cargarEscuelas();
+    },
+
+    // ---------- Panel de admin: escuelas (alta + enlace + QR) ----------
+    _baseUrl() {
+      const guardada = (() => { try { return localStorage.getItem('concurso_base_url') || ''; } catch (e) { return ''; } })();
+      return (this.baseUrlSitio || guardada || (location.origin + location.pathname)).trim();
+    },
+    guardarBaseUrl() {
+      try { localStorage.setItem('concurso_base_url', (this.baseUrlSitio || '').trim()); } catch (e) {}
+      this.escuelasMsg = 'Dirección del sitio guardada.'; this.escuelasError = false;
+    },
+    enlaceEscuela(e) {
+      const base = this._baseUrl();
+      return base + (base.includes('?') ? '&' : '?') + 'escuela=' + encodeURIComponent(e.token_acceso);
+    },
+    qrDeEscuela(e) {
+      try { return qrDataURL(this.enlaceEscuela(e), 5, 12); } catch (err) { return ''; }
+    },
+
+    async cargarEscuelas() {
+      if (!this.baseUrlSitio) {
+        try { this.baseUrlSitio = localStorage.getItem('concurso_base_url') || (location.origin + location.pathname); }
+        catch (e) { this.baseUrlSitio = location.origin + location.pathname; }
+      }
+      this.escuelasCargadas = false;
+      const { data, error } = await supabaseClient.from('escuelas')
+        .select('id,nombre,token_acceso,activa,fecha_alta').order('nombre');
+      this.escuelas = (!error && data) ? data : [];
+      this.escuelasCargadas = true;
+    },
+
+    async crearEscuela() {
+      const nombre = this.nuevaEscuelaNombre.trim();
+      if (!nombre) return;
+      this.creandoEscuela = true; this.escuelasMsg = ''; this.escuelasError = false;
+      const { error } = await supabaseClient.rpc('crear_escuela', { p_nombre: nombre });
+      this.creandoEscuela = false;
+      if (error) { this.escuelasError = true; this.escuelasMsg = error.message; return; }
+      this.nuevaEscuelaNombre = '';
+      this.escuelasMsg = 'Escuela creada. Copiá su enlace o descargá el QR y mandáselo.';
+      await this.cargarEscuelas();
+    },
+
+    async toggleActivaEscuela(e) {
+      const { error } = await supabaseClient.from('escuelas').update({ activa: !e.activa }).eq('id', e.id);
+      if (error) { this.escuelasError = true; this.escuelasMsg = error.message; return; }
+      await this.cargarEscuelas();
+    },
+
+    async regenerarEscuela(e) {
+      if (!confirm(`¿Regenerar el acceso de "${e.nombre}"?\nEl enlace y el QR anteriores dejan de funcionar.`)) return;
+      this.escuelasMsg = ''; this.escuelasError = false;
+      const { error } = await supabaseClient.rpc('regenerar_token_escuela', { p_escuela_id: e.id });
+      if (error) { this.escuelasError = true; this.escuelasMsg = error.message; return; }
+      this.escuelasMsg = 'Acceso regenerado. Enviá el enlace/QR nuevo a la escuela.';
+      await this.cargarEscuelas();
+    },
+
+    async copiarEnlaceEscuela(e) {
+      try {
+        await navigator.clipboard.writeText(this.enlaceEscuela(e));
+        e._copiado = true;
+        setTimeout(() => { e._copiado = false; }, 1500);
+      } catch (err) {}
+    },
+
+    descargarQR(e) {
+      try {
+        const gif = qrDataURL(this.enlaceEscuela(e), 12, 4);
+        const img = new Image();
+        img.onload = () => {
+          const c = document.createElement('canvas');
+          c.width = img.width; c.height = img.height;
+          c.getContext('2d').drawImage(img, 0, 0);
+          const a = document.createElement('a');
+          a.href = c.toDataURL('image/png');
+          a.download = 'QR - ' + e.nombre + '.png';
+          document.body.appendChild(a); a.click(); a.remove();
+        };
+        img.src = gif;
+      } catch (err) {}
+    },
+
+    // timestamptz (ISO/UTC) -> valor para <input type="datetime-local"> en hora local
+    aInputLocal(iso) {
+      if (!iso) return '';
+      const d = new Date(iso);
+      const p = (n) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+    },
+
+    async cargarConfigVotacion() {
+      this.votMsg = '';
+      this.votError = false;
+      const { data, error } = await supabaseClient.from('votacion_config').select('*').eq('id', 1).single();
+      if (!error && data) {
+        this.votAbre = this.aInputLocal(data.abre_at);
+        this.votCierra = this.aInputLocal(data.cierra_at);
+      }
+      const { data: abierta } = await supabaseClient.rpc('votacion_abierta');
+      this.votEstadoActual = abierta ? 'ABIERTA' : 'cerrada';
+    },
+
+    async guardarConfigVotacion() {
+      this.votMsg = '';
+      this.votError = false;
+      this.votGuardando = true;
+      const abre = this.votAbre ? new Date(this.votAbre).toISOString() : null;
+      const cierra = this.votCierra ? new Date(this.votCierra).toISOString() : null;
+      const { error } = await supabaseClient.rpc('configurar_votacion', { p_abre: abre, p_cierra: cierra });
+      this.votGuardando = false;
+      if (error) {
+        this.votError = true;
+        this.votMsg = error.message;
+        return;
+      }
+      this.votMsg = 'Fechas guardadas.';
+      await this.cargarConfigVotacion();
+    },
+
+    async cargarAdmins() {
+      this.adminMsg = '';
+      this.adminError = false;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      this.miId = session?.user?.id || '';
+      const { data, error } = await supabaseClient.rpc('listar_admins');
+      this.admins = (!error && data) ? data : [];
+      this.adminsCargados = true;
+    },
+
+    async agregarAdmin() {
+      const mail = this.nuevoAdminMail.trim();
+      if (!mail) return;
+      this.adminMsg = '';
+      this.adminError = false;
+      this.agregandoAdmin = true;
+      const { data, error } = await supabaseClient.rpc('designar_admin', { p_email: mail });
+      this.agregandoAdmin = false;
+      if (error) {
+        this.adminError = true;
+        this.adminMsg = error.message;
+        return;
+      }
+      this.adminMsg = data;
+      this.nuevoAdminMail = '';
+      await this.cargarAdmins();
+    },
+
+    async quitarAdmin(a) {
+      if (!confirm(`¿Quitar a ${a.email} como administrador?`)) return;
+      this.adminMsg = '';
+      this.adminError = false;
+      const { data, error } = await supabaseClient.rpc('quitar_admin', { p_id: a.id });
+      if (error) {
+        this.adminError = true;
+        this.adminMsg = error.message;
+        return;
+      }
+      this.adminMsg = data;
+      await this.cargarAdmins();
+    },
+
+    // ---------- Panel de admin: moderación de obras ----------
+    etiquetaEstado(e) {
+      return {
+        pendiente: 'Pendiente',
+        correccion_solicitada: 'Corrección solicitada',
+        aprobada: 'Aprobada',
+        rechazada: 'Rechazada',
+      }[e] || e;
+    },
+    colorEstado(e) {
+      return {
+        pendiente: 'background:var(--gray-light);color:var(--ink-soft)',
+        correccion_solicitada: 'background:var(--amber-light);color:var(--amber)',
+        aprobada: 'background:var(--green-light);color:var(--green)',
+        rechazada: 'background:var(--magenta-light);color:var(--magenta)',
+      }[e] || '';
+    },
+
+    async cargarObrasAdmin() {
+      this.obrasAdminCargadas = false;
+      this.obrasMsg = '';
+      this.obrasError = false;
+      const [obrasRes, escuelasRes] = await Promise.all([
+        supabaseClient.from('producciones')
+          .select('id,titulo,nivel,estado,curso_division,docente_responsable,fecha_creacion,escuela_id')
+          .order('fecha_creacion', { ascending: false }),
+        supabaseClient.from('escuelas').select('id,nombre'),
+      ]);
+      const escuelas = escuelasRes.data || [];
+      const nombrePorId = Object.fromEntries(escuelas.map((e) => [e.id, e.nombre]));
+      this.obrasAdmin = (obrasRes.data || []).map((o) => ({
+        ...o,
+        escuela_nombre: nombrePorId[o.escuela_id] || '—',
+      }));
+      this.escuelasLista = escuelas.filter((e) => this.obrasAdmin.some((o) => o.escuela_id === e.id));
+      this.obrasAdminCargadas = true;
+    },
+
+    obrasAdminFiltradas() {
+      return this.obrasAdmin.filter((o) =>
+        (!this.filtroEscuela || o.escuela_id === this.filtroEscuela) &&
+        (!this.filtroEstado || o.estado === this.filtroEstado)
+      );
+    },
+
+    async cambiarEstadoObra(obra, nuevoEstado) {
+      let motivo = null;
+      if (nuevoEstado === 'correccion_solicitada') {
+        motivo = prompt('¿Qué hay que corregir? La escuela lo va a ver:');
+        if (!motivo) return; // corrección sin motivo no tiene sentido
+      } else if (nuevoEstado === 'rechazada') {
+        motivo = prompt('Motivo del rechazo (opcional):') || null;
+      }
+      this.obraAccion = obra.id;
+      this.obrasMsg = '';
+      this.obrasError = false;
+      const { error } = await supabaseClient.rpc('cambiar_estado_produccion', {
+        p_produccion_id: obra.id,
+        p_nuevo_estado: nuevoEstado,
+        p_motivo: motivo,
+      });
+      this.obraAccion = null;
+      if (error) {
+        this.obrasError = true;
+        this.obrasMsg = error.message;
+        return;
+      }
+      this.obrasMsg = `"${obra.titulo}" → ${this.etiquetaEstado(nuevoEstado)}.`;
+      await this.cargarObrasAdmin();
+    },
+
+    async salirEscuela() {
+      localStorage.removeItem('concurso_token_escuela');
+      localStorage.removeItem('concurso_jwt_escuela');
+      localStorage.removeItem('concurso_codigo_escuela');
+      supabaseClient = crearClienteSupabase(); // volver a cliente normal (con Supabase Auth)
+      this._escucharAuth();
+      this.escuelaLogueada = false;
+      this.escuelaNombre = '';
+      // Si por debajo había una sesión personal (votante/admin), mostrarla.
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        this.sesionEmail = session.user.email;
+        await this.chequearSiEsAdmin();
+        this.vista = 'publico';
+        this.cargarObrasPublico();
+      } else {
+        this.vista = 'inicio';
+      }
+    },
+
+    async salirVotante() {
+      pararLectura();
+      this.reproduciendoId = null;
+      try { await supabaseClient.auth.signOut(); } catch (e) {}
+      this.sesionEmail = '';
+      this.esAdmin = false;
+      this.nivelPublico = null;
+      this.obras = [];
+      this.obrasCargadas = false;
+      this.vista = 'inicio';
+    },
+
+    // ---------- Vista pública: obras, ranking y voto ----------
+    nombreNivel(n) {
+      return { nivel_1: 'Nivel 1', nivel_2: 'Nivel 2', nivel_3: 'Nivel 3' }[n] || n;
+    },
+    colorNivel(n) {
+      return { nivel_1: 'var(--teal)', nivel_2: 'var(--magenta)', nivel_3: 'var(--amber)' }[n] || 'var(--teal)';
+    },
+
+    async cargarObrasPublico({ mostrarCarga = true } = {}) {
+      if (mostrarCarga) this.obrasCargadas = false;
+      const [obrasRes, votosRes] = await Promise.all([
+        supabaseClient.from('ranking_producciones').select('*').order('votos_total', { ascending: false }),
+        supabaseClient.rpc('mis_votos'),
+      ]);
+      this.obras = (!obrasRes.error && obrasRes.data) ? obrasRes.data : [];
+      // votadoNivel viene de la BASE (fuente de verdad), no del navegador
+      this.votadoNivel = {};
+      if (!votosRes.error && Array.isArray(votosRes.data)) {
+        for (const v of votosRes.data) this.votadoNivel[v.nivel] = v.produccion_id;
+      }
+      this.obrasCargadas = true;
+    },
+
+    obrasDeNivel(nivel) {
+      return this.obras.filter(o => o.nivel === nivel);
+    },
+    rankingDeNivel(nivel) {
+      return [...this.obrasDeNivel(nivel)].sort((a, b) => a.posicion - b.posicion);
+    },
+    yaVotoEnNivel(nivel) {
+      return !!this.votadoNivel[nivel];
+    },
+
+    async votar(obra) {
+      this.votoError = '';
+      this.votando = obra.produccion_id;
+      const { error } = await supabaseClient.rpc('registrar_voto', {
+        p_produccion_id: obra.produccion_id,
+        p_nivel: obra.nivel,
+      });
+      this.votando = null;
+      if (error) {
+        if (error.code === '23505') this.votoError = 'Ya votaste una obra en este nivel.';
+        else this.votoError = error.message || 'No se pudo registrar el voto.';
+        return;
+      }
+      this.votadoNivel[obra.nivel] = obra.produccion_id; // feedback inmediato
+      await this.cargarObrasPublico({ mostrarCarga: false });
+    },
+
+    async leerObra(obra) {
+      this.votoError = '';
+      this.leyendoId = obra.produccion_id;
+      const { data, error } = await supabaseClient.storage.from('obras').download(obra.produccion_id + '.pdf');
+      this.leyendoId = null;
+      if (error) { this.votoError = 'No se pudo abrir el PDF de esta obra.'; return; }
+      const url = URL.createObjectURL(data);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 120000);
+    },
+
+    async escucharObra(obra) {
+      this.votoError = '';
+      if (this.reproduciendoId === obra.produccion_id) {
+        pararLectura();
+        this.reproduciendoId = null;
+        return;
+      }
+      pararLectura();
+      const { data, error } = await supabaseClient
+        .from('producciones').select('texto_extraido').eq('id', obra.produccion_id).single();
+      if (error || !data || !data.texto_extraido) {
+        this.votoError = 'Esta obra no tiene audio disponible.';
+        return;
+      }
+      this.reproduciendoId = obra.produccion_id;
+      hablarTexto(data.texto_extraido, () => { this.reproduciendoId = null; });
+    },
+
+    compartirWhatsApp(obra) {
+      const texto = `"${obra.titulo}" (${obra.escuela_nombre}) — Concurso Literario Areal 2026\n${window.location.origin + window.location.pathname}`;
+      window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
+    },
+    async copiarEnlace(obra) {
+      try {
+        await navigator.clipboard.writeText(window.location.origin + window.location.pathname);
+        this.votoError = '';
+        obra._copiado = true;
+        setTimeout(() => { obra._copiado = false; }, 1500);
+      } catch (e) {}
+    },
+
+  };
+}
+</script>
+
+</body>
+</html>

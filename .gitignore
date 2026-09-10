@@ -1,0 +1,6 @@
+# Solo se publica lo estrictamente necesario para el sitio.
+# Todo lo demás (brief, migraciones SQL, notas, código de Apps Script) queda local.
+*
+!.gitignore
+!index.html
+!logo-pba.jpg
