@@ -59,6 +59,24 @@
     if ('speechSynthesis' in window) window.speechSynthesis.cancel();
   }
 
+  // Dibuja todas las páginas de un PDF (ArrayBuffer) dentro de un contenedor, para leerlo en pantalla.
+  async function renderPdfEnContenedor(buf, cont) {
+    if (!window.pdfjsLib || !cont) return;
+    cont.innerHTML = '<p style="color:#6B818A;font-size:0.85rem">Cargando páginas…</p>';
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    cont.innerHTML = '';
+    for (let i = 1; i <= pdf.numPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 1.6 });
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.cssText = 'width:100%;max-width:820px;margin:0 auto 14px;display:block;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,0.18)';
+      cont.appendChild(canvas);
+      await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+    }
+  }
+
   // Genera un QR (PNG data URL) a partir de un texto/URL.
   function qrDataURL(texto, cellSize, margin) {
     const qr = qrcode(0, 'M');
@@ -143,7 +161,6 @@
       </svg>
     </div>
     <h1 class="display text-3xl md:text-4xl font-extrabold" style="color: var(--teal-deep);">🏆 Concurso Literario Areal 2026</h1>
-    <p class="mt-2" style="color: var(--ink-soft);">Compartí lo que tenés para contar</p>
   </header>
 
   <!-- Selector de vista (solo visible con sesión iniciada) -->
@@ -164,11 +181,25 @@
           <div>
             <div class="text-3xl mb-2">🗳️</div>
             <h3 class="display font-extrabold text-lg mb-1">Quiero ver y votar</h3>
-            <p class="text-sm mb-4" style="color: var(--ink-soft);">Ingresá tu mail y te mandamos un enlace para entrar, sin contraseña.</p>
+            <p class="text-sm mb-4" style="color: var(--ink-soft);">Entrá para leer las obras y votar tu favorita.</p>
+
+            <button @click="entrarConGoogle()" :disabled="cargandoGoogle"
+                    class="w-full flex items-center justify-center gap-2 font-bold mb-3"
+                    style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:999px;">
+              <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.6 30.2 0 24 0 14.6 0 6.4 5.4 2.6 13.2l7.8 6.1C12.2 13.5 17.6 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.5 2.9-2.2 5.4-4.7 7l7.5 5.8C43.9 37.5 46.5 31.6 46.5 24.5z"/><path fill="#FBBC05" d="M10.4 28.3c-.5-1.5-.8-3-.8-4.8s.3-3.3.8-4.8l-7.8-6.1C.9 15.9 0 19.8 0 24s.9 8.1 2.6 11.4l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.2 0 11.5-2 15.3-5.5l-7.5-5.8c-2 1.4-4.7 2.3-7.8 2.3-6.4 0-11.8-4-13.6-9.6l-7.8 6.1C6.4 42.6 14.6 48 24 48z"/></svg>
+              <span x-text="cargandoGoogle ? 'Abriendo Google…' : 'Entrar con Google'"></span>
+            </button>
+
+            <div class="flex items-center gap-2 my-3">
+              <div class="flex-1 h-px" style="background: var(--gray-light);"></div>
+              <span class="text-xs" style="color: var(--ink-soft);">o con tu mail</span>
+              <div class="flex-1 h-px" style="background: var(--gray-light);"></div>
+            </div>
+
             <input type="text" placeholder="tu@mail.com" x-model="emailVotante" @keyup.enter="enviarEnlaceVotante()" class="mb-3">
             <p x-show="errorVotante" x-text="errorVotante" class="text-xs font-bold mb-3" style="color: var(--magenta);"></p>
-            <button class="btn-fill w-full" @click="enviarEnlaceVotante()" :disabled="cargandoVotante || !emailVotante">
-              <span x-text="cargandoVotante ? 'Enviando…' : 'Enviarme el enlace'"></span>
+            <button class="btn-ghost w-full text-sm" @click="enviarEnlaceVotante()" :disabled="cargandoVotante || !emailVotante">
+              <span x-text="cargandoVotante ? 'Enviando…' : 'Enviarme un enlace por mail'"></span>
             </button>
           </div>
         </template>
@@ -757,6 +788,16 @@
 
   </main>
 
+  <!-- Lector de PDF (modal) -->
+  <div x-show="pdfViendo" x-cloak class="fixed inset-0 z-50 flex flex-col" style="background: rgba(31,42,51,0.92);">
+    <div class="flex items-center gap-3 p-3" style="background: white;">
+      <p class="font-extrabold truncate flex-1" x-text="pdfTitulo"></p>
+      <button class="btn-ghost text-sm !py-2 !px-3 shrink-0" @click="descargarPdfActual()">⬇️ Descargar</button>
+      <button class="btn-fill text-sm !py-2 !px-3 shrink-0" @click="cerrarPdf()">✕ Cerrar</button>
+    </div>
+    <div x-ref="pdfCont" class="flex-1 overflow-auto p-4"></div>
+  </div>
+
   <footer class="max-w-5xl mx-auto px-6 py-10 text-center text-sm" style="color: var(--ink-soft);">
     Producciones Colectivas 2026
   </footer>
@@ -809,6 +850,7 @@ function app() {
     emailVotante: '',
     errorVotante: '',
     cargandoVotante: false,
+    cargandoGoogle: false,
     enlaceEnviado: false,
     esAdmin: false,
     esAdminPrincipal: false,
@@ -838,6 +880,9 @@ function app() {
     votadoNivel: {},              // { nivel_1: id_obra, ... } — recordatorio local (la base es la que manda)
     leyendoId: null,              // obra cuyo PDF se está abriendo
     reproduciendoId: null,        // obra que se está leyendo en voz alta
+    pdfViendo: false,             // modal de lectura abierto
+    pdfUrl: '',                   // blob URL del PDF actual (para descargar)
+    pdfTitulo: '',
 
     // --- Panel de admin ---
     adminTab: 'votacion',
@@ -1123,6 +1168,20 @@ function app() {
         return;
       }
       this.enlaceEnviado = true;
+    },
+
+    async entrarConGoogle() {
+      this.errorVotante = '';
+      this.cargandoGoogle = true;
+      const { error } = await supabaseClient.auth.signInWithOAuth({
+        provider: 'google',
+        options: { redirectTo: window.location.origin + window.location.pathname },
+      });
+      if (error) {
+        this.cargandoGoogle = false;
+        this.errorVotante = 'No se pudo iniciar sesión con Google.';
+      }
+      // si no hay error, el navegador redirige a Google y vuelve ya logueado
     },
 
     async chequearSiEsAdmin() {
@@ -1631,9 +1690,32 @@ function app() {
       const { data, error } = await supabaseClient.storage.from('obras').download(obra.produccion_id + '.pdf');
       this.leyendoId = null;
       if (error) { this.votoError = 'No se pudo abrir el PDF de esta obra.'; return; }
-      const url = URL.createObjectURL(data);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 120000);
+      if (this.pdfUrl) { try { URL.revokeObjectURL(this.pdfUrl); } catch (e) {} }
+      this.pdfUrl = URL.createObjectURL(data);
+      this.pdfTitulo = obra.titulo;
+      this.pdfViendo = true;
+      await this.$nextTick();
+      try {
+        await renderPdfEnContenedor(await data.arrayBuffer(), this.$refs.pdfCont);
+      } catch (e) {
+        if (this.$refs.pdfCont) this.$refs.pdfCont.innerHTML = '<p style="color:#fff">No se pudo mostrar en pantalla. Usá “Descargar”.</p>';
+      }
+    },
+
+    cerrarPdf() {
+      if (this.pdfUrl) { try { URL.revokeObjectURL(this.pdfUrl); } catch (e) {} }
+      this.pdfUrl = '';
+      this.pdfTitulo = '';
+      this.pdfViendo = false;
+      if (this.$refs.pdfCont) this.$refs.pdfCont.innerHTML = '';
+    },
+
+    descargarPdfActual() {
+      if (!this.pdfUrl) return;
+      const a = document.createElement('a');
+      a.href = this.pdfUrl;
+      a.download = (this.pdfTitulo || 'obra').replace(/[^\w\sáéíóúñ.-]/gi, '') + '.pdf';
+      document.body.appendChild(a); a.click(); a.remove();
     },
 
     async escucharObra(obra) {
