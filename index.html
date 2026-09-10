@@ -147,6 +147,7 @@
 
   <!-- Selector de vista (solo visible con sesión iniciada) -->
   <nav class="max-w-5xl mx-auto px-6 flex justify-center items-center gap-2 mb-8 flex-wrap" x-show="escuelaLogueada || sesionEmail" x-cloak>
+    <button @click="irAInicio()" class="nav-pill" style="border:2px solid var(--gray-light)">🏠 Inicio</button>
     <button x-show="escuelaLogueada" @click="vista = 'escuela'; cargarMisProducciones()" :class="vista === 'escuela' ? 'nav-pill active' : 'nav-pill'">📥 Cargar obra</button>
     <button x-show="sesionEmail" @click="vista = 'publico'; cargarObrasPublico()" :class="vista === 'publico' ? 'nav-pill active' : 'nav-pill'">🗳️ Votar y ver ranking</button>
     <button x-show="esAdmin" @click="vista = 'admin'; entrarPanelAdmin()" :class="vista === 'admin' ? 'nav-pill active' : 'nav-pill'">⚙️ Administración</button>
@@ -499,6 +500,7 @@
                 <button class="chip" style="background: var(--teal-light); color: var(--teal-deep);" @click="descargarQR(e)">⬇️ Descargar QR</button>
                 <button class="chip" style="background: var(--gray-light); color: var(--ink-soft);" @click="toggleActivaEscuela(e)" x-text="e.activa ? 'Desactivar' : 'Activar'"></button>
                 <button class="chip" style="background: var(--magenta-light); color: var(--magenta);" @click="regenerarEscuela(e)">Regenerar acceso</button>
+                <button class="chip" style="background: var(--magenta-light); color: var(--magenta);" @click="borrarEscuela(e)">🗑️ Borrar</button>
               </div>
 
               <div x-show="qrVisible === e.id" x-cloak class="mt-3 text-center">
@@ -609,10 +611,11 @@
                 </p>
               </div>
               <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
-              <div class="flex gap-2">
+              <div class="flex gap-2 items-center">
                 <button class="icon-circle" style="background: var(--green-light);" @click="cambiarEstadoObra(o,'aprobada')" :disabled="obraAccion===o.id || o.estado==='aprobada'" title="Aprobar">✅</button>
                 <button class="icon-circle" style="background: var(--amber-light);" @click="cambiarEstadoObra(o,'correccion_solicitada')" :disabled="obraAccion===o.id" title="Pedir corrección">✏️</button>
                 <button class="icon-circle" style="background: var(--magenta-light);" @click="cambiarEstadoObra(o,'rechazada')" :disabled="obraAccion===o.id || o.estado==='rechazada'" title="Rechazar">❌</button>
+                <button class="text-xs font-bold" style="color: var(--magenta);" @click="borrarObra(o)" :disabled="obraAccion===o.id" title="Borrar definitivamente">🗑️</button>
               </div>
             </div>
           </template>
@@ -1055,6 +1058,15 @@ function app() {
       } catch (err) {}
     },
 
+    async borrarEscuela(e) {
+      if (!confirm(`¿Borrar la escuela "${e.nombre}"?\nSolo se puede si no tiene ninguna obra cargada. Si tiene obras, desactivala.`)) return;
+      this.escuelasMsg = ''; this.escuelasError = false;
+      const { error } = await supabaseClient.rpc('borrar_escuela', { p_escuela_id: e.id });
+      if (error) { this.escuelasError = true; this.escuelasMsg = error.message; return; }
+      this.escuelasMsg = 'Escuela borrada.';
+      await this.cargarEscuelas();
+    },
+
     descargarQR(e) {
       try {
         const gif = qrDataURL(this.enlaceEscuela(e), 12, 4);
@@ -1222,6 +1234,18 @@ function app() {
       await this.cargarObrasAdmin();
     },
 
+    async borrarObra(o) {
+      if (!confirm(`¿Borrar la obra "${o.titulo}" definitivamente?\n\nSe borran también sus autores, el archivo PDF y los votos que haya recibido. No se puede deshacer.\n\nPara un rechazo normal usá el botón ❌.`)) return;
+      this.obraAccion = o.id;
+      this.obrasMsg = ''; this.obrasError = false;
+      try { await supabaseClient.storage.from('obras').remove([o.id + '.pdf']); } catch (e) {}
+      const { error } = await supabaseClient.rpc('borrar_obra', { p_produccion_id: o.id });
+      this.obraAccion = null;
+      if (error) { this.obrasError = true; this.obrasMsg = error.message; return; }
+      this.obrasMsg = `"${o.titulo}" borrada.`;
+      await this.cargarObrasAdmin();
+    },
+
     async salirEscuela() {
       localStorage.removeItem('concurso_token_escuela');
       localStorage.removeItem('concurso_jwt_escuela');
@@ -1252,6 +1276,22 @@ function app() {
       this.obras = [];
       this.obrasCargadas = false;
       this.vista = 'inicio';
+    },
+
+    // Botón "Inicio": vuelve a la pantalla principal de la sección actual.
+    irAInicio() {
+      pararLectura();
+      this.reproduciendoId = null;
+      this.votoError = '';
+      if (this.sesionEmail) {
+        this.nivelPublico = null;
+        this.vista = 'publico';
+        this.cargarObrasPublico();
+      } else if (this.escuelaLogueada) {
+        this.pasoCarga = 1;
+        this.vista = 'escuela';
+        this.cargarMisProducciones();
+      }
     },
 
     // ---------- Vista pública: obras, ranking y voto ----------
