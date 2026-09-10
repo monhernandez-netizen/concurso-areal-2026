@@ -167,7 +167,7 @@
   <nav class="max-w-5xl mx-auto px-6 flex justify-center items-center gap-2 mb-8 flex-wrap" x-show="escuelaLogueada || sesionEmail" x-cloak>
     <button @click="irAInicio()" class="nav-pill" style="border:2px solid var(--gray-light)">🏠 Inicio</button>
     <button x-show="escuelaLogueada" @click="vista = 'escuela'; cargarMisProducciones()" :class="vista === 'escuela' ? 'nav-pill active' : 'nav-pill'">📥 Cargar obra</button>
-    <button x-show="sesionEmail" @click="vista = 'publico'; cargarObrasPublico()" :class="vista === 'publico' ? 'nav-pill active' : 'nav-pill'">🗳️ Votar y ver ranking</button>
+    <button x-show="sesionEmail || escuelaLogueada" @click="vista = 'publico'; cargarObrasPublico()" :class="vista === 'publico' ? 'nav-pill active' : 'nav-pill'">🗳️ Ver obras y votar</button>
     <button x-show="esAdmin" @click="vista = 'admin'; entrarPanelAdmin()" :class="vista === 'admin' ? 'nav-pill active' : 'nav-pill'">⚙️ Administración</button>
   </nav>
 
@@ -377,8 +377,14 @@
     <!-- ============ VISTA PÚBLICO ============ -->
     <section x-show="vista === 'publico'" x-cloak>
       <div class="flex items-center justify-between mb-4 text-sm">
-        <span style="color: var(--ink-soft);">Conectado como <b x-text="sesionEmail"></b> <span x-show="esAdmin">👑</span></span>
-        <button class="font-bold" style="color: var(--ink-soft);" @click="salirVotante()">Salir</button>
+        <span x-show="sesionEmail" style="color: var(--ink-soft);">Conectado como <b x-text="sesionEmail"></b> <span x-show="esAdmin">👑</span></span>
+        <span x-show="!sesionEmail" style="color: var(--ink-soft);">Estás viendo como escuela</span>
+        <button x-show="sesionEmail" class="font-bold" style="color: var(--ink-soft);" @click="salirVotante()">Salir</button>
+      </div>
+
+      <div x-show="!sesionEmail && escuelaLogueada" class="card p-3 mb-4 text-sm" style="background: var(--amber-light); color: #8A6417;">
+        Para <b>votar</b> necesitás entrar con tu mail o Google.
+        <button class="font-bold underline ml-1" @click="salirEscuela()">Entrar para votar</button>
       </div>
 
       <!-- Cargando -->
@@ -438,11 +444,12 @@
                           <path d="M12 3v12"/><path d="M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/>
                         </svg>
                       </button>
-                      <button class="btn-fill text-sm !py-2 !px-4"
+                      <button x-show="sesionEmail" class="btn-fill text-sm !py-2 !px-4"
                               @click="votar(o)"
                               :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel)">
                         <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel) ? 'Ya votaste' : 'Votar'))"></span>
                       </button>
+                      <button x-show="!sesionEmail" class="btn-ghost text-sm !py-2 !px-3" @click="salirEscuela()">Entrar para votar</button>
                       <div x-show="o._compartiendo" @click.outside="o._compartiendo = false" x-cloak
                            class="card absolute bottom-12 right-0 p-2 w-52 z-10">
                         <button @click="compartirWhatsApp(o); o._compartiendo = false" class="w-full text-left flex items-center gap-2 p-2 rounded-xl text-sm font-bold hover:bg-gray-50">
@@ -774,7 +781,17 @@
                 </p>
               </div>
               <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
-              <div class="flex gap-2 items-center">
+              <div class="flex gap-2 items-center flex-wrap">
+                <button x-show="o.tiene_pdf" class="chip" style="background: var(--teal-light); color: var(--teal-deep);"
+                        @click="leerObra(o)" :disabled="leyendoId===o.id">
+                  <span x-text="leyendoId===o.id ? 'Abriendo…' : '📖 Leer'"></span>
+                </button>
+                <button x-show="o.tiene_audio" class="chip"
+                        :style="reproduciendoId===o.id ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--teal-light);color:var(--teal-deep)'"
+                        @click="escucharObra(o)">
+                  <span x-text="reproduciendoId===o.id ? '⏹ Parar' : '🔊 Escuchar'"></span>
+                </button>
+                <span class="w-px h-5" style="background: var(--gray-light);"></span>
                 <button class="icon-circle" style="background: var(--green-light);" @click="cambiarEstadoObra(o,'aprobada')" :disabled="obraAccion===o.id || o.estado==='aprobada'" title="Aprobar">✅</button>
                 <button class="icon-circle" style="background: var(--amber-light);" @click="cambiarEstadoObra(o,'correccion_solicitada')" :disabled="obraAccion===o.id" title="Pedir corrección">✏️</button>
                 <button class="icon-circle" style="background: var(--magenta-light);" @click="cambiarEstadoObra(o,'rechazada')" :disabled="obraAccion===o.id || o.estado==='rechazada'" title="Rechazar">❌</button>
@@ -783,6 +800,7 @@
             </div>
           </template>
         </div>
+        <p x-show="votoError" x-text="votoError" class="card p-3 mt-3 text-sm font-bold" style="background: var(--magenta-light); color: var(--magenta);"></p>
       </div>
     </section>
 
@@ -1527,7 +1545,7 @@ function app() {
       this.obrasError = false;
       const [obrasRes, escuelasRes] = await Promise.all([
         supabaseClient.from('producciones')
-          .select('id,titulo,nivel,estado,curso_division,docente_responsable,fecha_creacion,escuela_id')
+          .select('id,titulo,nivel,estado,curso_division,docente_responsable,fecha_creacion,escuela_id,pdf_path,texto_extraido')
           .order('fecha_creacion', { ascending: false }),
         supabaseClient.from('escuelas').select('id,nombre'),
       ]);
@@ -1536,6 +1554,8 @@ function app() {
       this.obrasAdmin = (obrasRes.data || []).map((o) => ({
         ...o,
         escuela_nombre: nombrePorId[o.escuela_id] || '—',
+        tiene_pdf: !!o.pdf_path,
+        tiene_audio: !!(o.texto_extraido && o.texto_extraido.trim()),
       }));
       this.escuelasLista = escuelas.filter((e) => this.obrasAdmin.some((o) => o.escuela_id === e.id));
       this.obrasAdminCargadas = true;
@@ -1623,14 +1643,10 @@ function app() {
       pararLectura();
       this.reproduciendoId = null;
       this.votoError = '';
-      if (this.sesionEmail) {
-        this.nivelPublico = null;
+      this.nivelPublico = null;
+      if (this.sesionEmail || this.escuelaLogueada) {
         this.vista = 'publico';
         this.cargarObrasPublico();
-      } else if (this.escuelaLogueada) {
-        this.pasoCarga = 1;
-        this.vista = 'escuela';
-        this.cargarMisProducciones();
       }
     },
 
@@ -1686,8 +1702,9 @@ function app() {
 
     async leerObra(obra) {
       this.votoError = '';
-      this.leyendoId = obra.produccion_id;
-      const { data, error } = await supabaseClient.storage.from('obras').download(obra.produccion_id + '.pdf');
+      const id = obra.produccion_id || obra.id;
+      this.leyendoId = id;
+      const { data, error } = await supabaseClient.storage.from('obras').download(id + '.pdf');
       this.leyendoId = null;
       if (error) { this.votoError = 'No se pudo abrir el PDF de esta obra.'; return; }
       if (this.pdfUrl) { try { URL.revokeObjectURL(this.pdfUrl); } catch (e) {} }
@@ -1720,20 +1737,25 @@ function app() {
 
     async escucharObra(obra) {
       this.votoError = '';
-      if (this.reproduciendoId === obra.produccion_id) {
+      const id = obra.produccion_id || obra.id;
+      if (this.reproduciendoId === id) {
         pararLectura();
         this.reproduciendoId = null;
         return;
       }
       pararLectura();
-      const { data, error } = await supabaseClient
-        .from('producciones').select('texto_extraido').eq('id', obra.produccion_id).single();
-      if (error || !data || !data.texto_extraido) {
+      let texto = obra.texto_extraido || null;
+      if (!texto) {
+        const { data, error } = await supabaseClient
+          .from('producciones').select('texto_extraido').eq('id', id).single();
+        if (!error && data) texto = data.texto_extraido;
+      }
+      if (!texto) {
         this.votoError = 'Esta obra no tiene audio disponible.';
         return;
       }
-      this.reproduciendoId = obra.produccion_id;
-      hablarTexto(data.texto_extraido, () => { this.reproduciendoId = null; });
+      this.reproduciendoId = id;
+      hablarTexto(texto, () => { this.reproduciendoId = null; });
     },
 
     compartirWhatsApp(obra) {
