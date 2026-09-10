@@ -259,7 +259,7 @@
           <!-- Paso 2: Autores -->
           <div x-show="pasoCarga === 2" class="space-y-4">
             <label>✍️ ¿Quiénes escribieron esta obra?</label>
-            <p class="text-xs -mt-2" style="color: var(--ink-soft);">Nombre y apellido reales (los ven solo la escuela y la organización). El seudónimo es opcional: si lo ponés, es lo único que se muestra en público.</p>
+            <p class="text-xs -mt-2" style="color: var(--ink-soft);">Nombre y apellido reales (los ven solo la escuela y la organización). El seudónimo es opcional: si lo ponés, es lo único que se muestra en público. El DNI es opcional y sirve para contar alumnos sin repetir; no se guarda como número, se guarda cifrado.</p>
             <template x-for="(a, i) in form.autores" :key="i">
               <div class="p-3 rounded-2xl space-y-2" style="background: var(--gray-light);">
                 <div class="flex justify-between items-center">
@@ -270,10 +270,15 @@
                   <input type="text" placeholder="Nombre real" x-model="a.nombre">
                   <input type="text" placeholder="Apellido real" x-model="a.apellido">
                 </div>
-                <input type="text" placeholder="Seudónimo público (opcional)" x-model="a.seudonimo">
+                <div class="grid grid-cols-2 gap-2">
+                  <input type="text" inputmode="numeric" placeholder="DNI (opcional)" x-model="a.dni"
+                         :style="!dniValido(a.dni) ? 'border-color:var(--magenta)' : ''">
+                  <input type="text" placeholder="Seudónimo público (opcional)" x-model="a.seudonimo">
+                </div>
+                <p x-show="!dniValido(a.dni)" class="text-xs font-bold" style="color: var(--magenta);">El DNI debe tener entre 6 y 9 números (o dejalo vacío).</p>
               </div>
             </template>
-            <button @click="form.autores.push({ nombre: '', apellido: '', seudonimo: '' })" class="text-sm font-bold" style="color: var(--teal);">+ Agregar otro autor</button>
+            <button @click="form.autores.push({ nombre: '', apellido: '', seudonimo: '', dni: '' })" class="text-sm font-bold" style="color: var(--teal);">+ Agregar otro autor</button>
             <div class="flex gap-3 mt-4">
               <button class="btn-ghost flex-1" @click="pasoCarga = 1">← Atrás</button>
               <button class="btn-fill flex-1" @click="if (paso2Valido()) pasoCarga = 3" :disabled="!paso2Valido()">Siguiente →</button>
@@ -684,7 +689,7 @@ function app() {
     pasoCarga: 1,
     form: {
       titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
-      autores: [{ nombre: '', apellido: '', seudonimo: '' }],
+      autores: [{ nombre: '', apellido: '', seudonimo: '', dni: '' }],
     },
     pdfFile: null,
     pdfNombre: '',
@@ -847,9 +852,13 @@ function app() {
     paso1Valido() {
       return this.form.titulo.trim() && this.form.curso_division.trim() && this.form.docente_responsable.trim();
     },
+    dniValido(dni) {
+      const d = (dni || '').replace(/\D/g, '');
+      return d === '' || (d.length >= 6 && d.length <= 9);
+    },
     paso2Valido() {
       return this.form.autores.length > 0 &&
-        this.form.autores.every((a) => a.nombre.trim() && a.apellido.trim());
+        this.form.autores.every((a) => a.nombre.trim() && a.apellido.trim() && this.dniValido(a.dni));
     },
 
     async elegirPdf(ev) {
@@ -888,7 +897,7 @@ function app() {
         p_docente_responsable: this.form.docente_responsable,
         p_texto_extraido: this.pdfTexto || null,
         p_autores: this.form.autores.map((a) => ({
-          nombre: a.nombre, apellido: a.apellido, seudonimo: a.seudonimo,
+          nombre: a.nombre, apellido: a.apellido, seudonimo: a.seudonimo, dni: a.dni,
         })),
       });
       if (e1) {
@@ -920,7 +929,7 @@ function app() {
     _limpiarFormulario() {
       this.form = {
         titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
-        autores: [{ nombre: '', apellido: '', seudonimo: '' }],
+        autores: [{ nombre: '', apellido: '', seudonimo: '', dni: '' }],
       };
       this.pdfFile = null; this.pdfNombre = ''; this.pdfTexto = '';
     },
