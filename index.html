@@ -9,6 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
   // pdf.js: extraer el texto de un PDF en el navegador (para el botón "Escuchar")
@@ -455,6 +456,7 @@
         <button @click="adminTab='escuelas'; cargarEscuelas()" :class="adminTab==='escuelas' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">🏫 Escuelas</button>
         <button @click="adminTab='votacion'; cargarConfigVotacion()" :class="adminTab==='votacion' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">🗳️ Votación</button>
         <button @click="adminTab='admins'; cargarAdmins()" :class="adminTab==='admins' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">👥 Administradores</button>
+        <button x-show="esAdminPrincipal" @click="adminTab='informe'; cargarInforme()" :class="adminTab==='informe' ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">📊 Informe final</button>
       </div>
 
       <!-- ===== ESCUELAS ===== -->
@@ -576,6 +578,131 @@
         <p x-show="adminMsg" x-text="adminMsg" class="text-sm font-bold mt-3" :style="adminError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
       </div>
 
+      <!-- ===== INFORME FINAL (solo admin principal) ===== -->
+      <div x-show="adminTab==='informe' && esAdminPrincipal" x-cloak>
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="display font-extrabold text-xl">Informe final</h3>
+          <button class="text-sm font-bold" style="color: var(--teal);" @click="cargarInforme()">↻ Actualizar</button>
+        </div>
+
+        <p x-show="!informeCargado" class="text-sm" style="color: var(--ink-soft);">Calculando…</p>
+        <p x-show="informeError" x-text="informeError" class="card p-3 text-sm font-bold" style="background: var(--magenta-light); color: var(--magenta);"></p>
+
+        <template x-if="informeCargado && informe">
+          <div class="space-y-6">
+
+            <!-- Generales -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <template x-for="c in [
+                  { t: 'Escuelas participantes', v: informe.generales.escuelas_participantes + ' / ' + informe.generales.escuelas_total },
+                  { t: 'Obras presentadas', v: informe.generales.obras_presentadas },
+                  { t: 'Obras aprobadas', v: informe.generales.obras_aprobadas },
+                  { t: 'Votantes únicos', v: informe.generales.votantes_unicos },
+                  { t: 'Votos totales', v: informe.generales.votos_totales },
+                  { t: 'Alumnos por DNI', v: informe.generales.alumnos_con_dni },
+                  { t: 'Alumnos únicos (estim.)', v: (informe.generales.alumnos_con_dni + informe.generales.alumnos_sin_dni_dedup_nombre) },
+                  { t: 'Autores sin DNI', v: informe.generales.autores_sin_dni }
+                ]" :key="c.t">
+                <div class="card p-3">
+                  <p class="text-xs" style="color: var(--ink-soft);" x-text="c.t"></p>
+                  <p class="font-extrabold text-xl" style="color: var(--teal-deep);" x-text="c.v"></p>
+                </div>
+              </template>
+            </div>
+            <p class="text-xs" style="color: var(--ink-soft);">
+              El conteo de alumnos por DNI es exacto. El resto se estima deduplicando por nombre y apellido
+              (<span x-text="informe.generales.autores_sin_dni"></span> autores sin DNI →
+              <span x-text="informe.generales.alumnos_sin_dni_dedup_nombre"></span> nombres distintos).
+            </p>
+
+            <!-- Por nivel -->
+            <div>
+              <h4 class="font-extrabold mb-2">Ganadoras por nivel</h4>
+              <div class="grid sm:grid-cols-3 gap-3">
+                <template x-for="n in informe.por_nivel" :key="n.nivel">
+                  <div class="card p-4">
+                    <p class="text-xs font-bold" style="color: var(--ink-soft);" x-text="nombreNivel(n.nivel) + ' · ' + n.obras_compitieron + ' obras · ' + n.votos_total + ' votos'"></p>
+                    <template x-if="n.ganadora">
+                      <div class="mt-1">
+                        <p class="font-extrabold" x-text="n.ganadora.titulo"></p>
+                        <p class="text-xs" style="color: var(--ink-soft);" x-text="n.ganadora.escuela + ' · ' + n.ganadora.votos + ' votos'"></p>
+                        <p class="text-xs" style="color: var(--ink-soft);" x-text="n.ganadora.autores"></p>
+                      </div>
+                    </template>
+                    <p x-show="!n.ganadora" class="text-xs mt-1" style="color: var(--ink-soft);">Sin obras aprobadas.</p>
+                  </div>
+                </template>
+              </div>
+            </div>
+
+            <!-- Por escuela -->
+            <div>
+              <h4 class="font-extrabold mb-2">Por escuela</h4>
+              <div class="card p-2 overflow-x-auto">
+                <table class="w-full text-sm">
+                  <thead>
+                    <tr style="color: var(--ink-soft);" class="text-xs text-left">
+                      <th class="p-2">Escuela</th>
+                      <th class="p-2 text-center">Obras (aprob.)</th>
+                      <th class="p-2 text-center">Alumnos c/DNI</th>
+                      <th class="p-2 text-center">N1</th>
+                      <th class="p-2 text-center">N2</th>
+                      <th class="p-2 text-center">N3</th>
+                      <th class="p-2 text-center">Votos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <template x-for="e in informe.por_escuela" :key="e.escuela">
+                      <tr class="border-t" style="border-color: var(--gray-light);">
+                        <td class="p-2 font-bold" x-text="e.escuela"></td>
+                        <td class="p-2 text-center" x-text="e.obras_presentadas + ' (' + e.obras_aprobadas + ')'"></td>
+                        <td class="p-2 text-center" x-text="e.alumnos_con_dni"></td>
+                        <td class="p-2 text-center" x-text="e.votos_nivel_1"></td>
+                        <td class="p-2 text-center" x-text="e.votos_nivel_2"></td>
+                        <td class="p-2 text-center" x-text="e.votos_nivel_3"></td>
+                        <td class="p-2 text-center font-bold" x-text="e.votos_total"></td>
+                      </tr>
+                    </template>
+                    <tr x-show="informe.por_escuela.length === 0"><td colspan="7" class="p-3 text-center text-xs" style="color: var(--ink-soft);">Todavía no hay escuelas con obras.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Comportamiento del votante -->
+            <div>
+              <h4 class="font-extrabold mb-2">Comportamiento del votante</h4>
+              <div class="card p-4 space-y-2 max-w-md">
+                <p class="text-xs" style="color: var(--ink-soft);" x-text="'Sobre ' + informe.comportamiento_votantes.votantes_con_algun_voto + ' votantes con al menos un voto:'"></p>
+                <div class="flex justify-between text-sm"><span>Votó en 1 nivel</span><span class="font-bold" x-text="informe.comportamiento_votantes.voto_en_1_nivel + '  (' + (informe.comportamiento_votantes.pct_1_nivel ?? 0) + '%)'"></span></div>
+                <div class="flex justify-between text-sm"><span>Votó en 2 niveles</span><span class="font-bold" x-text="informe.comportamiento_votantes.voto_en_2_niveles + '  (' + (informe.comportamiento_votantes.pct_2_niveles ?? 0) + '%)'"></span></div>
+                <div class="flex justify-between text-sm"><span>Votó en los 3 niveles</span><span class="font-bold" x-text="informe.comportamiento_votantes.voto_en_3_niveles + '  (' + (informe.comportamiento_votantes.pct_3_niveles ?? 0) + '%)'"></span></div>
+              </div>
+            </div>
+
+            <!-- Exportaciones -->
+            <div class="card p-5 space-y-4">
+              <div>
+                <button class="btn-fill" @click="exportarPptx()" :disabled="exportandoPptx">
+                  <span x-text="exportandoPptx ? 'Generando…' : '📊 Exportar a PowerPoint'"></span>
+                </button>
+                <p class="text-xs mt-1" style="color: var(--ink-soft);">Solo datos agregados. No incluye emails ni datos de alumnos.</p>
+              </div>
+
+              <div class="pt-4 border-t" style="border-color: var(--gray-light);">
+                <button class="btn-ghost text-sm" @click="descargarCsvVotantes()" :disabled="exportandoCsv">
+                  <span x-text="exportandoCsv ? 'Preparando…' : '📄 Descargar CSV de emails de votantes'"></span>
+                </button>
+                <p class="text-xs mt-1" style="color: var(--ink-soft);">Uso administrativo interno. <b>No</b> forma parte de la presentación.</p>
+              </div>
+
+              <p x-show="informeMsg" x-text="informeMsg" class="text-sm font-bold" style="color: var(--green);"></p>
+            </div>
+
+          </div>
+        </template>
+      </div>
+
       <!-- ===== OBRAS (moderación) ===== -->
       <div x-show="adminTab==='obras'" x-cloak>
         <div class="card p-4 flex gap-3 mb-4 flex-wrap items-center">
@@ -684,6 +811,7 @@ function app() {
     cargandoVotante: false,
     enlaceEnviado: false,
     esAdmin: false,
+    esAdminPrincipal: false,
 
     // --- Vista escuela: carga de obra + "Tus producciones" ---
     pasoCarga: 1,
@@ -746,6 +874,13 @@ function app() {
     escuelasError: false,
     baseUrlSitio: '',
     qrVisible: null,
+    // Informe final
+    informe: null,
+    informeCargado: false,
+    informeError: '',
+    informeMsg: '',
+    exportandoPptx: false,
+    exportandoCsv: false,
 
     // Se ejecuta solo al cargar la página. Prioridad:
     //   1) ?escuela=TOKEN en la URL (intención explícita: enlace/QR)
@@ -993,6 +1128,12 @@ function app() {
     async chequearSiEsAdmin() {
       const { data, error } = await supabaseClient.rpc('is_admin');
       this.esAdmin = !error && data === true;
+      if (this.esAdmin) {
+        const { data: p } = await supabaseClient.rpc('is_admin_principal');
+        this.esAdminPrincipal = p === true;
+      } else {
+        this.esAdminPrincipal = false;
+      }
     },
 
     // ---------- Panel de admin ----------
@@ -1001,6 +1142,137 @@ function app() {
       else if (this.adminTab === 'admins') this.cargarAdmins();
       else if (this.adminTab === 'obras') this.cargarObrasAdmin();
       else if (this.adminTab === 'escuelas') this.cargarEscuelas();
+      else if (this.adminTab === 'informe' && this.esAdminPrincipal) this.cargarInforme();
+    },
+
+    // ---------- Panel de admin: Informe final ----------
+    async cargarInforme() {
+      this.informeCargado = false;
+      this.informeError = '';
+      this.informeMsg = '';
+      const { data, error } = await supabaseClient.rpc('informe_final');
+      if (error) { this.informeError = error.message; this.informe = null; }
+      else this.informe = data;
+      this.informeCargado = true;
+    },
+
+    async descargarCsvVotantes() {
+      this.exportandoCsv = true;
+      this.informeError = '';
+      this.informeMsg = '';
+      const { data, error } = await supabaseClient.rpc('exportar_votantes');
+      this.exportandoCsv = false;
+      if (error) { this.informeError = error.message; return; }
+      const filas = data || [];
+      const cols = ['email', 'metodo', 'voto_nivel_1', 'voto_nivel_2', 'voto_nivel_3', 'niveles_votados'];
+      const esc = (v) => {
+        const s = String(v === null || v === undefined ? '' : v);
+        return /[",\n\r;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      };
+      const csv = [cols.join(',')]
+        .concat(filas.map((f) => cols.map((k) => esc(f[k])).join(',')))
+        .join('\r\n');
+      const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'votantes_concurso_areal_2026.csv';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+      this.informeMsg = `CSV descargado — ${filas.length} votantes.`;
+    },
+
+    async exportarPptx() {
+      if (!this.informe || typeof PptxGenJS === 'undefined') {
+        this.informeError = 'No se pudo cargar la librería de PowerPoint.';
+        return;
+      }
+      this.exportandoPptx = true;
+      this.informeError = '';
+      this.informeMsg = '';
+      try {
+        const inf = this.informe;
+        const g = inf.generales;
+        const AZUL = '0B8A9E', TINTA = '1F2A33', GRIS = '6B818A', BORDE = 'EEF3F4';
+        const pptx = new PptxGenJS();
+        pptx.author = 'Concurso Literario Areal 2026';
+        pptx.title = 'Informe final — Concurso Literario Areal 2026';
+
+        // 1. Portada
+        let s = pptx.addSlide();
+        s.background = { color: 'F4FAFB' };
+        s.addText('Concurso Literario Areal 2026', { x: 0.5, y: 2.0, w: 9, h: 1, fontSize: 30, bold: true, color: AZUL, align: 'center' });
+        s.addText('Informe final', { x: 0.5, y: 3.0, w: 9, h: 0.6, fontSize: 20, color: GRIS, align: 'center' });
+        s.addText('Producciones Colectivas 2026', { x: 0.5, y: 5.2, w: 9, h: 0.4, fontSize: 12, color: GRIS, align: 'center' });
+
+        // 2. Resumen general
+        s = pptx.addSlide();
+        s.addText('Resumen general', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
+        const alumnosEstim = (g.alumnos_con_dni || 0) + (g.alumnos_sin_dni_dedup_nombre || 0);
+        const gen = [
+          ['Escuelas participantes', `${g.escuelas_participantes} de ${g.escuelas_total}`],
+          ['Obras presentadas', String(g.obras_presentadas)],
+          ['Obras aprobadas', String(g.obras_aprobadas)],
+          ['Alumnos únicos (estimado)', String(alumnosEstim)],
+          ['   identificados por DNI', String(g.alumnos_con_dni)],
+          ['   sin DNI, deduplicados por nombre', `${g.alumnos_sin_dni_dedup_nombre} (de ${g.autores_sin_dni} autores)`],
+          ['Votantes únicos', String(g.votantes_unicos)],
+          ['Votos totales', String(g.votos_totales)],
+        ];
+        s.addTable(gen.map((r) => [
+          { text: r[0], options: { color: TINTA } },
+          { text: r[1], options: { bold: true, color: AZUL, align: 'right' } },
+        ]), { x: 0.5, y: 1.2, w: 9, colW: [6, 3], fontSize: 14, rowH: 0.45, border: { type: 'solid', color: BORDE, pt: 1 } });
+        s.addText('El conteo por DNI es exacto. El resto se estima deduplicando por nombre y apellido.', { x: 0.5, y: 5.5, w: 9, h: 0.5, fontSize: 10, italic: true, color: GRIS });
+
+        // 3. Ganadoras por nivel
+        s = pptx.addSlide();
+        s.addText('Ganadoras por nivel', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
+        let yy = 1.3;
+        for (const n of inf.por_nivel) {
+          s.addText(`${this.nombreNivel(n.nivel)} — ${n.obras_compitieron} obras, ${n.votos_total} votos`, { x: 0.5, y: yy, w: 9, h: 0.4, fontSize: 14, bold: true, color: GRIS });
+          if (n.ganadora) {
+            s.addText(`"${n.ganadora.titulo}" — ${n.ganadora.escuela}  (${n.ganadora.votos} votos)`, { x: 0.8, y: yy + 0.45, w: 8.7, h: 0.4, fontSize: 15, bold: true, color: TINTA });
+            s.addText(n.ganadora.autores || '', { x: 0.8, y: yy + 0.85, w: 8.7, h: 0.35, fontSize: 11, color: GRIS });
+          } else {
+            s.addText('Sin obras aprobadas', { x: 0.8, y: yy + 0.45, w: 8.7, h: 0.4, fontSize: 12, italic: true, color: GRIS });
+          }
+          yy += 1.65;
+        }
+
+        // 4. Por escuela
+        s = pptx.addSlide();
+        s.addText('Por escuela', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
+        const cab = ['Escuela', 'Obras (aprob.)', 'Alumnos c/DNI', 'Votos'].map((t, i) => ({ text: t, options: { bold: true, align: i === 0 ? 'left' : 'center', color: 'FFFFFF', fill: { color: AZUL } } }));
+        const cuerpo = inf.por_escuela.map((e) => [
+          e.escuela,
+          { text: `${e.obras_presentadas} (${e.obras_aprobadas})`, options: { align: 'center' } },
+          { text: String(e.alumnos_con_dni), options: { align: 'center' } },
+          { text: String(e.votos_total), options: { align: 'center' } },
+        ]);
+        s.addTable([cab].concat(cuerpo), { x: 0.4, y: 1.2, w: 9.2, fontSize: 11, rowH: 0.4, border: { type: 'solid', color: BORDE, pt: 1 }, autoPage: true, autoPageRepeatHeader: true });
+
+        // 5. Comportamiento del votante
+        s = pptx.addSlide();
+        s.addText('Comportamiento del votante', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
+        const cv = inf.comportamiento_votantes;
+        s.addText(`Sobre ${cv.votantes_con_algun_voto} votantes con al menos un voto:`, { x: 0.5, y: 1.2, w: 9, h: 0.4, fontSize: 13, color: GRIS });
+        const cvr = [
+          ['Votó en 1 nivel', cv.voto_en_1_nivel, cv.pct_1_nivel],
+          ['Votó en 2 niveles', cv.voto_en_2_niveles, cv.pct_2_niveles],
+          ['Votó en los 3 niveles', cv.voto_en_3_niveles, cv.pct_3_niveles],
+        ];
+        s.addTable(cvr.map((r) => [
+          { text: r[0], options: { color: TINTA } },
+          { text: String(r[1]), options: { align: 'center' } },
+          { text: (r[2] === null || r[2] === undefined ? 0 : r[2]) + '%', options: { align: 'right', bold: true, color: AZUL } },
+        ]), { x: 0.5, y: 1.8, w: 9, colW: [5, 2, 2], fontSize: 14, rowH: 0.5, border: { type: 'solid', color: BORDE, pt: 1 } });
+
+        await pptx.writeFile({ fileName: 'informe_concurso_areal_2026.pptx' });
+        this.informeMsg = 'PowerPoint descargado.';
+      } catch (e) {
+        this.informeError = 'No se pudo generar el PowerPoint: ' + e;
+      }
+      this.exportandoPptx = false;
     },
 
     // ---------- Panel de admin: escuelas (alta + enlace + QR) ----------
