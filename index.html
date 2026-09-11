@@ -84,6 +84,31 @@
     qr.make();
     return qr.createDataURL(cellSize || 6, margin || 12);
   }
+
+  // Redimensiona y comprime una imagen a JPEG en el navegador (para portadas livianas).
+  function comprimirImagen(file, maxDim, calidad) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        const max = maxDim || 700;
+        if (width > height && width > max) { height = Math.round(height * max / width); width = max; }
+        else if (height > max) { width = Math.round(width * max / height); height = max; }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(
+          (blob) => (blob ? resolve(blob) : reject(new Error('No se pudo procesar la imagen'))),
+          'image/jpeg',
+          calidad || 0.75
+        );
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('No se pudo leer la imagen')); };
+      img.src = url;
+    });
+  }
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -332,6 +357,21 @@
             <p x-show="pdfFile && !extrayendoTexto && pdfTexto" class="text-xs font-bold" style="color: var(--green);" x-text="'✓ Texto leído (' + pdfTexto.length + ' caracteres) — va a tener audio.'"></p>
             <p x-show="pdfFile && !extrayendoTexto && !pdfTexto" class="text-xs font-bold" style="color: var(--amber);">⚠️ No se pudo leer texto de este PDF (¿es escaneado?). La obra se puede enviar igual, pero no va a tener "Escuchar".</p>
 
+            <label class="mt-2 block">🖼️ Portada (opcional)</label>
+            <p class="text-xs -mt-2" style="color: var(--ink-soft);">Si no elegís una imagen, la obra se muestra con un color liso.</p>
+
+            <div x-show="!portadaPreview" class="card p-5 text-center cursor-pointer" style="border: 2px dashed var(--gray-light); box-shadow:none;">
+              <label class="block cursor-pointer">
+                <div class="text-3xl mb-1">🖼️</div>
+                <p class="text-sm font-bold">Elegir imagen de portada</p>
+                <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="elegirPortada($event)">
+              </label>
+            </div>
+            <div x-show="portadaPreview" x-cloak class="relative">
+              <img :src="portadaPreview" class="w-full h-40 object-cover rounded-[20px]">
+              <button type="button" class="btn-ghost text-sm !py-1 !px-3 mt-2" @click="quitarPortada()">✕ Quitar portada</button>
+            </div>
+
             <p x-show="envioMsg" x-text="envioMsg" class="text-sm font-bold p-2 rounded-xl"
                :style="envioError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
 
@@ -367,6 +407,12 @@
                      class="text-xs font-bold cursor-pointer inline-block mt-2" style="color: var(--teal);">
                 ⬆️ Subir el PDF que falta
                 <input type="file" accept="application/pdf" class="hidden" @change="reintentarPdf(p, $event)">
+              </label>
+
+              <label x-show="!p.portada_path && (p.estado === 'pendiente' || p.estado === 'correccion_solicitada')"
+                     class="text-xs font-bold cursor-pointer inline-block mt-2 ml-3" style="color: var(--teal);">
+                🖼️ Agregar portada
+                <input type="file" accept="image/jpeg,image/png,image/webp" class="hidden" @change="reintentarPortada(p, $event)">
               </label>
             </div>
           </template>
@@ -419,7 +465,8 @@
           <div class="md:col-span-2 grid sm:grid-cols-2 gap-5">
             <template x-for="o in obrasDeNivel(nivelPublico)" :key="o.produccion_id">
               <div class="card">
-                <div class="h-20 rounded-t-[20px]" :style="`background:${colorNivel(o.nivel)}`"></div>
+                <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="h-20 w-full object-cover rounded-t-[20px]">
+                <div x-show="!o.portada_path" class="h-20 rounded-t-[20px]" :style="`background:${colorNivel(o.nivel)}`"></div>
                 <div class="p-4">
                   <p class="font-extrabold display" x-text="o.titulo"></p>
                   <p class="text-xs" style="color: var(--ink-soft);" x-text="o.escuela_nombre"></p>
@@ -883,6 +930,9 @@ function app() {
     pdfNombre: '',
     pdfTexto: '',
     extrayendoTexto: false,
+    portadaFile: null,
+    portadaNombre: '',
+    portadaPreview: '',
     enviando: false,
     envioMsg: '',
     envioError: false,
@@ -1054,6 +1104,9 @@ function app() {
       const d = (dni || '').replace(/\D/g, '');
       return d === '' || (d.length >= 6 && d.length <= 9);
     },
+    portadaUrl(path) {
+      return path ? SUPABASE_URL + '/storage/v1/object/public/portadas/' + path : '';
+    },
     paso2Valido() {
       return this.form.autores.length > 0 &&
         this.form.autores.every((a) => a.nombre.trim() && a.apellido.trim() && this.dniValido(a.dni));
@@ -1078,6 +1131,32 @@ function app() {
       try { this.pdfTexto = await extraerTextoPDF(file); }
       catch (e) { this.pdfTexto = ''; }
       this.extrayendoTexto = false;
+    },
+
+    async elegirPortada(ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+        alert('La portada tiene que ser una imagen JPG, PNG o WEBP.');
+        ev.target.value = ''; return;
+      }
+      if (file.size > 8 * 1024 * 1024) {
+        alert('La imagen no puede superar los 8 MB.');
+        ev.target.value = ''; return;
+      }
+      try {
+        this.portadaFile = await comprimirImagen(file);
+        if (this.portadaPreview) URL.revokeObjectURL(this.portadaPreview);
+        this.portadaPreview = URL.createObjectURL(this.portadaFile);
+        this.portadaNombre = file.name;
+      } catch (e) {
+        alert('No se pudo procesar la imagen.');
+      }
+    },
+
+    quitarPortada() {
+      if (this.portadaPreview) URL.revokeObjectURL(this.portadaPreview);
+      this.portadaFile = null; this.portadaPreview = ''; this.portadaNombre = '';
     },
 
     async enviarProduccion() {
@@ -1117,6 +1196,14 @@ function app() {
 
       await supabaseClient.from('producciones').update({ pdf_path: nuevoId + '.pdf' }).eq('id', nuevoId);
 
+      if (this.portadaFile) {
+        const { error: e3 } = await supabaseClient.storage.from('portadas')
+          .upload(nuevoId + '.jpg', this.portadaFile, { contentType: 'image/jpeg', upsert: true });
+        if (!e3) {
+          await supabaseClient.from('producciones').update({ portada_path: nuevoId + '.jpg' }).eq('id', nuevoId);
+        }
+      }
+
       this.enviando = false; this.envioError = false;
       this.envioMsg = '✅ ¡Obra enviada! Queda pendiente de revisión.';
       this._limpiarFormulario();
@@ -1130,6 +1217,7 @@ function app() {
         autores: [{ nombre: '', apellido: '', seudonimo: '', dni: '' }],
       };
       this.pdfFile = null; this.pdfNombre = ''; this.pdfTexto = '';
+      this.quitarPortada();
     },
 
     async reintentarPdf(prod, ev) {
@@ -1149,11 +1237,27 @@ function app() {
       await this.cargarMisProducciones();
     },
 
+    async reintentarPortada(prod, ev) {
+      const file = ev.target.files && ev.target.files[0];
+      if (!file) return;
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 8 * 1024 * 1024) {
+        alert('Tiene que ser una imagen JPG, PNG o WEBP de hasta 8 MB.'); return;
+      }
+      let blob;
+      try { blob = await comprimirImagen(file); }
+      catch (e) { alert('No se pudo procesar la imagen.'); return; }
+      const { error } = await supabaseClient.storage.from('portadas')
+        .upload(prod.id + '.jpg', blob, { contentType: 'image/jpeg', upsert: true });
+      if (error) { alert('No se pudo subir: ' + error.message); return; }
+      await supabaseClient.from('producciones').update({ portada_path: prod.id + '.jpg' }).eq('id', prod.id);
+      await this.cargarMisProducciones();
+    },
+
     async cargarMisProducciones() {
       this.misProduccionesCargadas = false;
       const [prodRes, histRes] = await Promise.all([
         supabaseClient.from('producciones')
-          .select('id,titulo,nivel,estado,pdf_path,fecha_creacion')
+          .select('id,titulo,nivel,estado,pdf_path,portada_path,fecha_creacion')
           .order('fecha_creacion', { ascending: false }),
         supabaseClient.from('historial_estados')
           .select('produccion_id,estado_nuevo,motivo,fecha')
