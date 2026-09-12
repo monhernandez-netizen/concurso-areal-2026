@@ -310,6 +310,13 @@
               <label>👩‍🏫 Docente responsable</label>
               <input type="text" placeholder="Nombre y apellido" x-model="form.docente_responsable">
             </div>
+            <div>
+              <label>📧 Tu mail de contacto</label>
+              <input type="email" placeholder="tu-mail@ejemplo.com" x-model="form.contacto_email"
+                     :style="form.contacto_email && !emailValido(form.contacto_email) ? 'border-color:var(--magenta)' : ''">
+              <p class="text-xs mt-1" style="color: var(--ink-soft);">Por si necesitamos comunicarnos sobre esta obra.</p>
+              <p x-show="form.contacto_email && !emailValido(form.contacto_email)" class="text-xs font-bold" style="color: var(--magenta);">Ese mail no parece válido.</p>
+            </div>
             <button class="btn-fill w-full mt-2" @click="if (paso1Valido()) pasoCarga = 2" :disabled="!paso1Valido()">Siguiente →</button>
           </div>
 
@@ -684,6 +691,7 @@
                   { t: 'Obras aprobadas', v: informe.generales.obras_aprobadas },
                   { t: 'Votantes únicos', v: informe.generales.votantes_unicos },
                   { t: 'Votos totales', v: informe.generales.votos_totales },
+                  { t: 'Mails distintos usados para cargar', v: informe.generales.mails_distintos_carga },
                   { t: 'Alumnos por DNI', v: informe.generales.alumnos_con_dni },
                   { t: 'Alumnos únicos (estim.)', v: (informe.generales.alumnos_con_dni + informe.generales.alumnos_sin_dni_dedup_nombre) },
                   { t: 'Autores sin DNI', v: informe.generales.autores_sin_dni }
@@ -729,6 +737,7 @@
                     <tr style="color: var(--ink-soft);" class="text-xs text-left">
                       <th class="p-2">Escuela</th>
                       <th class="p-2 text-center">Obras (aprob.)</th>
+                      <th class="p-2 text-center">Mails distintos</th>
                       <th class="p-2 text-center">Alumnos c/DNI</th>
                       <th class="p-2 text-center">N1</th>
                       <th class="p-2 text-center">N2</th>
@@ -741,6 +750,7 @@
                       <tr class="border-t" style="border-color: var(--gray-light);">
                         <td class="p-2 font-bold" x-text="e.escuela"></td>
                         <td class="p-2 text-center" x-text="e.obras_presentadas + ' (' + e.obras_aprobadas + ')'"></td>
+                        <td class="p-2 text-center" x-text="e.mails_distintos_carga"></td>
                         <td class="p-2 text-center" x-text="e.alumnos_con_dni"></td>
                         <td class="p-2 text-center" x-text="e.votos_nivel_1"></td>
                         <td class="p-2 text-center" x-text="e.votos_nivel_2"></td>
@@ -748,7 +758,7 @@
                         <td class="p-2 text-center font-bold" x-text="e.votos_total"></td>
                       </tr>
                     </template>
-                    <tr x-show="informe.por_escuela.length === 0"><td colspan="7" class="p-3 text-center text-xs" style="color: var(--ink-soft);">Todavía no hay escuelas con obras.</td></tr>
+                    <tr x-show="informe.por_escuela.length === 0"><td colspan="8" class="p-3 text-center text-xs" style="color: var(--ink-soft);">Todavía no hay escuelas con obras.</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -825,6 +835,9 @@
                   <span x-text="nombreNivel(o.nivel)"></span> ·
                   <span x-text="o.curso_division"></span> ·
                   <span x-text="o.docente_responsable"></span>
+                </p>
+                <p class="text-xs" style="color: var(--ink-soft);" x-show="o.contacto_email">
+                  📧 <span x-text="o.contacto_email"></span>
                 </p>
               </div>
               <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
@@ -923,7 +936,7 @@ function app() {
     // --- Vista escuela: carga de obra + "Tus producciones" ---
     pasoCarga: 1,
     form: {
-      titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
+      titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '', contacto_email: '',
       autores: [{ nombre: '', apellido: '', seudonimo: '', dni: '' }],
     },
     pdfFile: null,
@@ -1097,8 +1110,12 @@ function app() {
       for (const a of anios) for (let d = 1; d <= 6; d++) lista.push(a + '°' + d + '°');
       return lista;
     },
+    emailValido(email) {
+      return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test((email || '').trim());
+    },
     paso1Valido() {
-      return this.form.titulo.trim() && this.form.curso_division.trim() && this.form.docente_responsable.trim();
+      return this.form.titulo.trim() && this.form.curso_division.trim() && this.form.docente_responsable.trim()
+        && this.emailValido(this.form.contacto_email);
     },
     dniValido(dni) {
       const d = (dni || '').replace(/\D/g, '');
@@ -1172,6 +1189,7 @@ function app() {
         p_curso_division: this.form.curso_division,
         p_nivel: this.form.nivel,
         p_docente_responsable: this.form.docente_responsable,
+        p_contacto_email: this.form.contacto_email,
         p_texto_extraido: this.pdfTexto || null,
         p_autores: this.form.autores.map((a) => ({
           nombre: a.nombre, apellido: a.apellido, seudonimo: a.seudonimo, dni: a.dni,
@@ -1213,7 +1231,7 @@ function app() {
 
     _limpiarFormulario() {
       this.form = {
-        titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '',
+        titulo: '', curso_division: '', nivel: 'nivel_1', docente_responsable: '', contacto_email: '',
         autores: [{ nombre: '', apellido: '', seudonimo: '', dni: '' }],
       };
       this.pdfFile = null; this.pdfNombre = ''; this.pdfTexto = '';
@@ -1398,6 +1416,7 @@ function app() {
           ['   sin DNI, deduplicados por nombre', `${g.alumnos_sin_dni_dedup_nombre} (de ${g.autores_sin_dni} autores)`],
           ['Votantes únicos', String(g.votantes_unicos)],
           ['Votos totales', String(g.votos_totales)],
+          ['Mails distintos usados para cargar', String(g.mails_distintos_carga)],
         ];
         s.addTable(gen.map((r) => [
           { text: r[0], options: { color: TINTA } },
@@ -1423,10 +1442,11 @@ function app() {
         // 4. Por escuela
         s = pptx.addSlide();
         s.addText('Por escuela', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
-        const cab = ['Escuela', 'Obras (aprob.)', 'Alumnos c/DNI', 'Votos'].map((t, i) => ({ text: t, options: { bold: true, align: i === 0 ? 'left' : 'center', color: 'FFFFFF', fill: { color: AZUL } } }));
+        const cab = ['Escuela', 'Obras (aprob.)', 'Mails distintos', 'Alumnos c/DNI', 'Votos'].map((t, i) => ({ text: t, options: { bold: true, align: i === 0 ? 'left' : 'center', color: 'FFFFFF', fill: { color: AZUL } } }));
         const cuerpo = inf.por_escuela.map((e) => [
           e.escuela,
           { text: `${e.obras_presentadas} (${e.obras_aprobadas})`, options: { align: 'center' } },
+          { text: String(e.mails_distintos_carga), options: { align: 'center' } },
           { text: String(e.alumnos_con_dni), options: { align: 'center' } },
           { text: String(e.votos_total), options: { align: 'center' } },
         ]);
@@ -1649,7 +1669,7 @@ function app() {
       this.obrasError = false;
       const [obrasRes, escuelasRes] = await Promise.all([
         supabaseClient.from('producciones')
-          .select('id,titulo,nivel,estado,curso_division,docente_responsable,fecha_creacion,escuela_id,pdf_path,texto_extraido')
+          .select('id,titulo,nivel,estado,curso_division,docente_responsable,contacto_email,fecha_creacion,escuela_id,pdf_path,texto_extraido')
           .order('fecha_creacion', { ascending: false }),
         supabaseClient.from('escuelas').select('id,nombre'),
       ]);
