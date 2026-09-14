@@ -553,7 +553,7 @@
             <ol class="space-y-3">
               <template x-for="(o, i) in rankingDeNivel(nivelPublico)" :key="o.produccion_id">
                 <li class="flex items-center gap-3">
-                  <div class="step-circle" :style="i===0 ? 'background:var(--amber);color:white' : 'background:var(--gray-light);color:var(--ink-soft)'" x-text="i+1"></div>
+                  <div class="step-circle" :style="i===0 ? `background:${colorNivel(nivelPublico)};color:white` : 'background:var(--gray-light);color:var(--ink-soft)'" x-text="i+1"></div>
                   <div class="flex-1">
                     <p class="text-sm font-bold" x-text="o.titulo"></p>
                     <p class="text-xs" style="color: var(--ink-soft);" x-text="o.votos_total + ' votos'"></p>
@@ -855,7 +855,8 @@
         <div class="space-y-3" x-show="obrasAdminCargadas">
           <template x-for="o in obrasAdminFiltradas()" :key="o.id">
             <div class="card p-4 flex items-center gap-4 flex-wrap">
-              <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="w-12 h-12 object-cover rounded-xl shrink-0">
+              <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="w-12 h-12 object-cover rounded-xl shrink-0 cursor-pointer"
+                   @click="window.open(portadaUrl(o.portada_path), '_blank')" title="Ver portada en tamaño completo">
               <div class="flex-1 min-w-0">
                 <p class="font-extrabold" x-text="o.titulo"></p>
                 <p class="text-xs" style="color: var(--ink-soft);">
@@ -879,6 +880,10 @@
                         :style="reproduciendoId===o.id ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--teal-light);color:var(--teal-deep)'"
                         @click="escucharObra(o)">
                   <span x-text="reproduciendoId===o.id ? '⏹ Parar' : '🔊 Escuchar'"></span>
+                </button>
+                <button x-show="o.portada_path" class="chip" style="background: var(--teal-light); color: var(--teal-deep);"
+                        @click="window.open(portadaUrl(o.portada_path), '_blank')">
+                  🖼️ Ver portada
                 </button>
                 <span class="w-px h-5" style="background: var(--gray-light);"></span>
                 <button class="icon-circle" style="background: var(--green-light);" @click="cambiarEstadoObra(o,'aprobada')" :disabled="obraAccion===o.id || o.estado==='aprobada'" title="Aprobar">✅</button>
