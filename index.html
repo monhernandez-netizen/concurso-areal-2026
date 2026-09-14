@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="referrer" content="no-referrer">
-<title>Concurso Literario Areal 2026</title>
+<title>Producciones Colectivas 2026</title>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -63,7 +63,7 @@
   // Dibuja todas las páginas de un PDF (ArrayBuffer) dentro de un contenedor, para leerlo en pantalla.
   async function renderPdfEnContenedor(buf, cont) {
     if (!window.pdfjsLib || !cont) return;
-    cont.innerHTML = '<p style="color:#6B818A;font-size:0.85rem">Cargando páginas…</p>';
+    cont.innerHTML = '<p style="color:#6B6483;font-size:0.85rem">Cargando páginas…</p>';
     const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
     cont.innerHTML = '';
     for (let i = 1; i <= pdf.numPages; i++) {
@@ -149,19 +149,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #F4FAFB;
+    --bg: #FAF7FD;
     --ink: #1F2A33;
-    --ink-soft: #6B818A;
-    --teal: #0B8A9E;
-    --teal-deep: #086E7D;
-    --teal-light: #E3F5F8;
-    --magenta: #C23B84;
+    --ink-soft: #6B6483;
+    --teal: #7C3AED;
+    --teal-deep: #5B21B6;
+    --teal-light: #F1E8FD;
+    --magenta: #D6368F;
     --magenta-light: #FBE7F1;
     --green: #3FA05C;
     --green-light: #E6F6EA;
     --amber: #D99A2B;
     --amber-light: #FDF1DD;
-    --gray-light: #EEF3F4;
+    --gray-light: #EFEAF7;
   }
   body { background: var(--bg); color: var(--ink); font-family: 'Nunito', system-ui, sans-serif; }
   .display { font-family: 'Baloo 2', sans-serif; }
@@ -169,7 +169,7 @@
   .chip { border-radius: 999px; padding: 0.3rem 0.8rem; font-size: 0.8rem; font-weight: 700; display: inline-flex; align-items: center; gap: 0.3rem; }
   .btn-fill { background: var(--teal); color: white; font-weight: 800; padding: 0.75rem 1.5rem; border-radius: 999px; transition: transform 0.1s, background 0.15s; }
   .btn-fill:hover { background: var(--teal-deep); transform: translateY(-1px); }
-  .btn-fill:disabled { background: #C7D3D6; cursor: default; transform: none; }
+  .btn-fill:disabled { background: #D3CBE3; cursor: default; transform: none; }
   .btn-ghost { border: 2px solid var(--teal); color: var(--teal); font-weight: 800; padding: 0.7rem 1.4rem; border-radius: 999px; }
   .icon-circle { width: 44px; height: 44px; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
   .nav-pill { border-radius: 999px; padding: 0.55rem 1.2rem; font-weight: 700; color: var(--ink-soft); }
@@ -220,7 +220,7 @@
         <path d="M22 10v6"/>
       </svg>
     </div>
-    <h1 class="display text-3xl md:text-4xl font-extrabold" style="color: var(--teal-deep);">🏆 Concurso Literario Areal 2026</h1>
+    <h1 class="display text-3xl md:text-4xl font-extrabold" style="color: var(--teal-deep);">✨ Producciones Colectivas 2026</h1>
   </header>
 
   <!-- Selector de vista (solo visible con sesión iniciada) -->
@@ -1453,17 +1453,17 @@ function app() {
       try {
         const inf = this.informe;
         const g = inf.generales;
-        const AZUL = '0B8A9E', TINTA = '1F2A33', GRIS = '6B818A', BORDE = 'EEF3F4';
+        const AZUL = '7C3AED', TINTA = '1F2A33', GRIS = '6B6483', BORDE = 'EFEAF7';
         const pptx = new PptxGenJS();
-        pptx.author = 'Concurso Literario Areal 2026';
-        pptx.title = 'Informe final — Concurso Literario Areal 2026';
+        pptx.author = 'Producciones Colectivas 2026';
+        pptx.title = 'Informe final — Producciones Colectivas 2026';
 
         // 1. Portada
         let s = pptx.addSlide();
-        s.background = { color: 'F4FAFB' };
-        s.addText('Concurso Literario Areal 2026', { x: 0.5, y: 2.0, w: 9, h: 1, fontSize: 30, bold: true, color: AZUL, align: 'center' });
+        s.background = { color: 'FAF7FD' };
+        s.addText('Producciones Colectivas 2026', { x: 0.5, y: 2.0, w: 9, h: 1, fontSize: 30, bold: true, color: AZUL, align: 'center' });
         s.addText('Informe final', { x: 0.5, y: 3.0, w: 9, h: 0.6, fontSize: 20, color: GRIS, align: 'center' });
-        s.addText('Producciones Colectivas 2026', { x: 0.5, y: 5.2, w: 9, h: 0.4, fontSize: 12, color: GRIS, align: 'center' });
+        s.addText('Dirección General de Cultura y Educación — Provincia de Buenos Aires', { x: 0.5, y: 5.2, w: 9, h: 0.4, fontSize: 12, color: GRIS, align: 'center' });
 
         // 2. Resumen general
         s = pptx.addSlide();
@@ -1948,7 +1948,7 @@ function app() {
       return window.location.origin + window.location.pathname + '?obra=' + obra.produccion_id;
     },
     compartirWhatsApp(obra) {
-      const texto = `"${obra.titulo}" (${obra.escuela_nombre}) — Concurso Literario Areal 2026\n${this.enlaceObra(obra)}`;
+      const texto = `"${obra.titulo}" (${obra.escuela_nombre}) — Producciones Colectivas 2026\n${this.enlaceObra(obra)}`;
       window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
     },
     async copiarEnlace(obra) {
