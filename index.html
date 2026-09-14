@@ -842,6 +842,7 @@
                 </p>
               </div>
               <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
+              <span x-show="!o.tiene_pdf" class="chip font-bold" style="background: var(--magenta-light); color: var(--magenta);">⚠️ Sin PDF</span>
               <div class="flex gap-2 items-center flex-wrap">
                 <button x-show="o.tiene_pdf" class="chip" style="background: var(--teal-light); color: var(--teal-deep);"
                         @click="leerObra(o)" :disabled="leyendoId===o.id">
