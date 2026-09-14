@@ -312,7 +312,7 @@
             </div>
             <div>
               <label>📧 Tu mail de contacto</label>
-              <input type="email" placeholder="tu-mail@ejemplo.com" x-model="form.contacto_email"
+              <input type="text" inputmode="email" placeholder="tu-mail@ejemplo.com" x-model="form.contacto_email"
                      :style="form.contacto_email && !emailValido(form.contacto_email) ? 'border-color:var(--magenta)' : ''">
               <p class="text-xs mt-1" style="color: var(--ink-soft);">Por si necesitamos comunicarnos sobre esta obra.</p>
               <p x-show="form.contacto_email && !emailValido(form.contacto_email)" class="text-xs font-bold" style="color: var(--magenta);">Ese mail no parece válido.</p>
