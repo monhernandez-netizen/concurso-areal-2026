@@ -410,7 +410,7 @@
 
               <p x-show="p.motivo" class="text-xs mt-2 p-2 rounded-xl" style="background: var(--amber-light); color: #8A6417;" x-text="'💬 Corrección pedida: ' + p.motivo"></p>
 
-              <label x-show="!p.pdf_path && (p.estado === 'pendiente' || p.estado === 'correccion_solicitada')"
+              <label x-show="!p.pdf_path && p.estado !== 'rechazada'"
                      class="text-xs font-bold cursor-pointer inline-block mt-2" style="color: var(--teal);">
                 ⬆️ Subir el PDF que falta
                 <input type="file" accept="application/pdf" class="hidden" @change="reintentarPdf(p, $event)">
