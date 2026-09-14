@@ -262,23 +262,6 @@
       </div>
 
       <!-- Acceso secundario: escuela por código manual (el camino normal es el enlace/QR) -->
-      <div class="mt-4 text-center">
-        <button x-show="!mostrarCodigoEscuela" @click="mostrarCodigoEscuela = true"
-                class="text-sm font-bold underline" style="color: var(--ink-soft);">
-          🏫 Sos una escuela y tenés un código
-        </button>
-        <div x-show="mostrarCodigoEscuela" x-cloak class="card p-5 mt-2 text-left">
-          <h3 class="display font-extrabold mb-1">Acceso de escuela</h3>
-          <p class="text-xs mb-3" style="color: var(--ink-soft);">
-            Lo normal es entrar con el enlace (o el QR) que te enviamos. Si no lo tenés a mano, escribí acá el código de respaldo.
-          </p>
-          <input type="text" placeholder="Código de escuela" x-model="codigoEscuela" @keyup.enter="ingresarConCodigo()" class="mb-3">
-          <p x-show="errorEscuela" x-text="errorEscuela" class="text-xs font-bold mb-3" style="color: var(--magenta);"></p>
-          <button class="btn-fill w-full" @click="ingresarConCodigo()" :disabled="cargandoEscuela || !codigoEscuela">
-            <span x-text="cargandoEscuela ? 'Verificando…' : 'Ingresar'"></span>
-          </button>
-        </div>
-      </div>
     </section>
 
     <!-- ============ VISTA ESCUELA ============ -->
@@ -954,8 +937,6 @@ function app() {
     vista: 'inicio',
     escuelaLogueada: false,
     escuelaNombre: '',
-    mostrarCodigoEscuela: false,
-    codigoEscuela: '',
     errorEscuela: '',
     cargandoEscuela: false,
     sesionEmail: '',
@@ -1146,18 +1127,9 @@ function app() {
       localStorage.setItem('concurso_token_escuela', token);
       localStorage.removeItem('concurso_jwt_escuela'); // clave vieja, ya no se usa
       this.escuelaLogueada = true;
-      this.codigoEscuela = '';
-      this.mostrarCodigoEscuela = false;
       this.vista = 'escuela';
       this.cargarMisProducciones();
       return true;
-    },
-
-    // Botón "Ingresar" del campo de código manual (respaldo).
-    ingresarConCodigo() {
-      const token = this.codigoEscuela.trim();
-      if (!token) return;
-      return this.entrarComoEscuela(token, { silencioso: false });
     },
 
     // ---------- Vista escuela: carga de obra ----------
