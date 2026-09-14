@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
   // pdf.js: extraer el texto de un PDF en el navegador (para el botón "Escuchar")
@@ -109,6 +110,40 @@
       img.src = url;
     });
   }
+
+  // Boton "Completar con Google" para autocompletar el mail de contacto al cargar
+  // una obra. Usa Google Identity Services solo para leer el mail de la cuenta;
+  // no crea ninguna sesion (la escuela sigue con su propio acceso por enlace/JWT).
+  const GOOGLE_CLIENT_ID = '443995649094-910c3gn40mdejmeokus5onrpi851vv6r.apps.googleusercontent.com';
+
+  function decodeJwtPayload(token) {
+    try {
+      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(atob(base64).split('').map((c) =>
+        '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join('')));
+    } catch (e) { return null; }
+  }
+
+  function initBotonGoogleContacto(intentos) {
+    const el = document.getElementById('btn-google-contacto');
+    const listo = window.google && google.accounts && google.accounts.id;
+    if (!el || !listo) {
+      if ((intentos || 0) < 30) setTimeout(() => initBotonGoogleContacto((intentos || 0) + 1), 300);
+      return;
+    }
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (resp) => {
+        const payload = decodeJwtPayload(resp.credential);
+        const comp = document.querySelector('[x-data]');
+        if (payload && payload.email && comp && window.Alpine) {
+          Alpine.$data(comp).form.contacto_email = payload.email;
+        }
+      },
+    });
+    google.accounts.id.renderButton(el, { theme: 'outline', size: 'medium', text: 'continue_with', shape: 'pill' });
+  }
+  window.addEventListener('load', () => initBotonGoogleContacto(0));
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -316,6 +351,8 @@
                      :style="form.contacto_email && !emailValido(form.contacto_email) ? 'border-color:var(--magenta)' : ''">
               <p class="text-xs mt-1" style="color: var(--ink-soft);">Por si necesitamos comunicarnos sobre esta obra.</p>
               <p x-show="form.contacto_email && !emailValido(form.contacto_email)" class="text-xs font-bold" style="color: var(--magenta);">Ese mail no parece válido.</p>
+              <p class="text-xs font-bold mt-2" style="color: var(--ink-soft);">o completá con tu cuenta de Google:</p>
+              <div id="btn-google-contacto" class="mt-1"></div>
             </div>
             <button class="btn-fill w-full mt-2" @click="if (paso1Valido()) pasoCarga = 2" :disabled="!paso1Valido()">Siguiente →</button>
           </div>
