@@ -471,7 +471,8 @@
         <div class="grid md:grid-cols-3 gap-8" x-show="obrasDeNivel(nivelPublico).length > 0">
           <div class="md:col-span-2 grid sm:grid-cols-2 gap-5">
             <template x-for="o in obrasDeNivel(nivelPublico)" :key="o.produccion_id">
-              <div class="card">
+              <div class="card" :id="'obra-' + o.produccion_id"
+                   :style="o.produccion_id === obraDestacadaId ? 'outline:3px solid var(--teal);outline-offset:2px' : ''">
                 <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="h-20 w-full object-cover rounded-t-[20px]">
                 <div x-show="!o.portada_path" class="h-20 rounded-t-[20px]" :style="`background:${colorNivel(o.nivel)}`"></div>
                 <div class="p-4">
@@ -964,6 +965,7 @@ function app() {
     pdfViendo: false,             // modal de lectura abierto
     pdfUrl: '',                   // blob URL del PDF actual (para descargar)
     pdfTitulo: '',
+    obraDestacadaId: '',           // obra a la que se saltó por un enlace compartido
 
     // --- Panel de admin ---
     adminTab: 'votacion',
@@ -1029,7 +1031,7 @@ function app() {
         this.sesionEmail = session.user.email;
         await this.chequearSiEsAdmin();
         if (this.vista === 'inicio') this.vista = 'publico';
-        if (this.vista === 'publico') this.cargarObrasPublico();
+        if (this.vista === 'publico') { await this.cargarObrasPublico(); this.saltarAObraCompartida(); }
         this._escucharAuth();
         return;
       }
@@ -1051,9 +1053,31 @@ function app() {
           this.sesionEmail = session.user.email;
           await this.chequearSiEsAdmin();
           if (this.vista === 'inicio') this.vista = 'publico';
-          if (this.vista === 'publico') this.cargarObrasPublico();
+          if (this.vista === 'publico') { await this.cargarObrasPublico(); this.saltarAObraCompartida(); }
         }
       });
+    },
+
+    // Si la URL trae ?obra=ID (enlace compartido), va directo a esa obra:
+    // elige su nivel y hace scroll hasta la tarjeta, resaltándola un momento.
+    async saltarAObraCompartida() {
+      const params = new URLSearchParams(window.location.search);
+      const id = (params.get('obra') || '').trim();
+      if (!id) return;
+
+      const obra = this.obras.find((o) => o.produccion_id === id);
+      if (obra) {
+        this.nivelPublico = obra.nivel;
+        this.obraDestacadaId = id;
+        await this.$nextTick();
+        const el = document.getElementById('obra-' + id);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => { this.obraDestacadaId = ''; }, 4000);
+      }
+
+      params.delete('obra');
+      const query = params.toString();
+      history.replaceState({}, '', window.location.pathname + (query ? '?' + query : ''));
     },
 
     // Quita ?escuela=TOKEN de la barra de direcciones después de usarlo. El token
@@ -1315,7 +1339,7 @@ function app() {
       this.cargandoGoogle = true;
       const { error } = await supabaseClient.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin + window.location.pathname },
+        options: { redirectTo: window.location.href.split('#')[0] },
       });
       if (error) {
         this.cargandoGoogle = false;
@@ -1882,13 +1906,16 @@ function app() {
       hablarTexto(texto, () => { this.reproduciendoId = null; });
     },
 
+    enlaceObra(obra) {
+      return window.location.origin + window.location.pathname + '?obra=' + obra.produccion_id;
+    },
     compartirWhatsApp(obra) {
-      const texto = `"${obra.titulo}" (${obra.escuela_nombre}) — Concurso Literario Areal 2026\n${window.location.origin + window.location.pathname}`;
+      const texto = `"${obra.titulo}" (${obra.escuela_nombre}) — Concurso Literario Areal 2026\n${this.enlaceObra(obra)}`;
       window.open('https://wa.me/?text=' + encodeURIComponent(texto), '_blank');
     },
     async copiarEnlace(obra) {
       try {
-        await navigator.clipboard.writeText(window.location.origin + window.location.pathname);
+        await navigator.clipboard.writeText(this.enlaceObra(obra));
         this.votoError = '';
         obra._copiado = true;
         setTimeout(() => { obra._copiado = false; }, 1500);
