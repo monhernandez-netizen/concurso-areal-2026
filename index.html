@@ -319,6 +319,9 @@
             </template>
           </div>
 
+          <p x-show="envioMsg" x-text="envioMsg" class="text-sm font-bold p-2 rounded-xl mb-4"
+             :style="envioError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
+
           <!-- Paso 1: Datos -->
           <div x-show="pasoCarga === 1" class="space-y-4">
             <div>
@@ -416,9 +419,6 @@
               <img :src="portadaPreview" class="w-full h-40 object-cover rounded-[20px]">
               <button type="button" class="btn-ghost text-sm !py-1 !px-3 mt-2" @click="quitarPortada()">✕ Quitar portada</button>
             </div>
-
-            <p x-show="envioMsg" x-text="envioMsg" class="text-sm font-bold p-2 rounded-xl"
-               :style="envioError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
 
             <div class="flex gap-3 mt-4">
               <button class="btn-ghost flex-1" @click="pasoCarga = 2" :disabled="enviando">← Atrás</button>
@@ -867,6 +867,7 @@
         <div class="space-y-3" x-show="obrasAdminCargadas">
           <template x-for="o in obrasAdminFiltradas()" :key="o.id">
             <div class="card p-4 flex items-center gap-4 flex-wrap">
+              <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="w-12 h-12 object-cover rounded-xl shrink-0">
               <div class="flex-1 min-w-0">
                 <p class="font-extrabold" x-text="o.titulo"></p>
                 <p class="text-xs" style="color: var(--ink-soft);">
@@ -1277,16 +1278,19 @@ function app() {
 
       await supabaseClient.from('producciones').update({ pdf_path: nuevoId + '.pdf' }).eq('id', nuevoId);
 
+      let avisoPortada = '';
       if (this.portadaFile) {
         const { error: e3 } = await supabaseClient.storage.from('portadas')
           .upload(nuevoId + '.jpg', this.portadaFile, { contentType: 'image/jpeg', upsert: true });
         if (!e3) {
           await supabaseClient.from('producciones').update({ portada_path: nuevoId + '.jpg' }).eq('id', nuevoId);
+        } else {
+          avisoPortada = ' La portada no se pudo subir (' + e3.message + '); reintentá desde "Tus obras".';
         }
       }
 
       this.enviando = false; this.envioError = false;
-      this.envioMsg = '✅ ¡Obra enviada! Queda pendiente de revisión.';
+      this.envioMsg = '✅ ¡Obra enviada! Queda pendiente de revisión.' + avisoPortada;
       this._limpiarFormulario();
       this.pasoCarga = 1;
       await this.cargarMisProducciones();
@@ -1732,7 +1736,7 @@ function app() {
       this.obrasError = false;
       const [obrasRes, escuelasRes] = await Promise.all([
         supabaseClient.from('producciones')
-          .select('id,titulo,nivel,estado,curso_division,docente_responsable,contacto_email,fecha_creacion,escuela_id,pdf_path,texto_extraido')
+          .select('id,titulo,nivel,estado,curso_division,docente_responsable,contacto_email,fecha_creacion,escuela_id,pdf_path,portada_path,texto_extraido')
           .order('fecha_creacion', { ascending: false }),
         supabaseClient.from('escuelas').select('id,nombre'),
       ]);
@@ -1842,7 +1846,7 @@ function app() {
       return { nivel_1: 'Nivel 1', nivel_2: 'Nivel 2', nivel_3: 'Nivel 3' }[n] || n;
     },
     colorNivel(n) {
-      return { nivel_1: 'var(--teal)', nivel_2: 'var(--magenta)', nivel_3: 'var(--amber)' }[n] || 'var(--teal)';
+      return { nivel_1: 'var(--green)', nivel_2: 'var(--magenta)', nivel_3: 'var(--amber)' }[n] || 'var(--teal)';
     },
 
     async cargarObrasPublico({ mostrarCarga = true } = {}) {
