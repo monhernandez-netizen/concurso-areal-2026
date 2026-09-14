@@ -1276,7 +1276,8 @@ function app() {
         const { error: e3 } = await supabaseClient.storage.from('portadas')
           .upload(nuevoId + '.jpg', this.portadaFile, { contentType: 'image/jpeg', upsert: true });
         if (!e3) {
-          await supabaseClient.from('producciones').update({ portada_path: nuevoId + '.jpg' }).eq('id', nuevoId);
+          const { error: e4 } = await supabaseClient.from('producciones').update({ portada_path: nuevoId + '.jpg' }).eq('id', nuevoId);
+          if (e4) avisoPortada = ' La portada se subió pero no se pudo guardar (' + e4.message + '); reintentá desde "Tus obras".';
         } else {
           avisoPortada = ' La portada no se pudo subir (' + e3.message + '); reintentá desde "Tus obras".';
         }
@@ -1327,7 +1328,8 @@ function app() {
       const { error } = await supabaseClient.storage.from('portadas')
         .upload(prod.id + '.jpg', blob, { contentType: 'image/jpeg', upsert: true });
       if (error) { alert('No se pudo subir: ' + error.message); return; }
-      await supabaseClient.from('producciones').update({ portada_path: prod.id + '.jpg' }).eq('id', prod.id);
+      const { error: e2 } = await supabaseClient.from('producciones').update({ portada_path: prod.id + '.jpg' }).eq('id', prod.id);
+      if (e2) { alert('La imagen se subió pero no se pudo guardar: ' + e2.message); return; }
       await this.cargarMisProducciones();
     },
 
