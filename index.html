@@ -1124,7 +1124,6 @@ function app() {
 
       supabaseClient = crearClienteSupabase(jwt);
       this.escuelaNombre = leerPayloadJWT(jwt).escuela_nombre || 'Tu escuela';
-      window.__debugJWT = leerPayloadJWT(jwt); console.log('DEBUG escuela JWT:', window.__debugJWT);
       localStorage.setItem('concurso_token_escuela', token);
       localStorage.removeItem('concurso_jwt_escuela'); // clave vieja, ya no se usa
       this.escuelaLogueada = true;
