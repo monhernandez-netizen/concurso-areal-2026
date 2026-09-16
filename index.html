@@ -1359,6 +1359,7 @@ function app() {
     },
 
     async chequearSiEsAdmin() {
+      await supabaseClient.rpc('activar_invitacion_admin');
       const { data, error } = await supabaseClient.rpc('is_admin');
       this.esAdmin = !error && data === true;
       if (this.esAdmin) {
