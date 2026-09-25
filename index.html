@@ -276,9 +276,17 @@
       </div>
 
       <div class="grid md:grid-cols-2 gap-6">
+        <!-- Carga cerrada -->
+        <div x-show="!carga.abierta" x-cloak class="card p-6 h-fit" style="background: var(--amber-light);">
+          <h3 class="display font-extrabold text-xl mb-1" style="color:#8A6417;">📅 Carga de obras cerrada</h3>
+          <p class="text-sm font-bold" style="color:#8A6417;" x-text="textoCargaCerrada()"></p>
+          <p class="text-xs mt-2" style="color:#8A6417;">Las obras que ya cargaste siguen visibles a la derecha.</p>
+        </div>
+
         <!-- Formulario por pasos -->
-        <div class="card p-6">
+        <div x-show="carga.abierta" class="card p-6">
           <h3 class="display font-extrabold text-xl mb-1">Nueva obra</h3>
+          <p x-show="textoCargaAbierta()" x-text="textoCargaAbierta()" class="text-xs font-bold mb-2" style="color: var(--wine);"></p>
           <p class="text-sm mb-5" style="color: var(--ink-soft);">Paso <span x-text="pasoCarga"></span> de 3</p>
 
           <div class="flex items-center gap-2 mb-6">
@@ -621,7 +629,34 @@
       </div>
 
       <!-- ===== VOTACIÓN ===== -->
-      <div x-show="adminTab==='votacion'" x-cloak class="card p-6 max-w-lg">
+      <div x-show="adminTab==='votacion'" x-cloak class="space-y-6">
+      <div class="card p-6 max-w-lg">
+        <h3 class="display font-extrabold text-xl mb-1">Fechas de carga de obras</h3>
+        <p class="text-sm mb-5" style="color: var(--ink-soft);">
+          Las escuelas pueden cargar obras solo entre estas dos fechas; fuera de ese rango el formulario se cierra solo. Si las dejás vacías, queda cerrada.
+        </p>
+        <div class="space-y-4">
+          <div>
+            <label>Apertura</label>
+            <input type="datetime-local" x-model="cargaAbre" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <div>
+            <label>Cierre</label>
+            <input type="datetime-local" x-model="cargaCierra" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <p x-show="cargaMsg" x-text="cargaMsg" class="text-sm font-bold" :style="cargaError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+          <div class="flex gap-3 flex-wrap">
+            <button class="btn-fill" @click="guardarConfigCarga()" :disabled="cargaGuardando">
+              <span x-text="cargaGuardando ? 'Guardando…' : 'Guardar fechas'"></span>
+            </button>
+            <button class="btn-ghost" @click="cargaAbre=''; cargaCierra=''; guardarConfigCarga()" :disabled="cargaGuardando">Cerrar carga ahora</button>
+          </div>
+          <p class="text-xs pt-2" style="color: var(--ink-soft);">
+            Estado en este momento: <b x-text="cargaEstadoActual"></b>
+          </p>
+        </div>
+      </div>
+      <div class="card p-6 max-w-lg">
         <h3 class="display font-extrabold text-xl mb-1">Fechas de la votación</h3>
         <p class="text-sm mb-5" style="color: var(--ink-soft);">
           La votación se habilita automáticamente entre estas dos fechas. Si las dejás vacías, queda cerrada.
@@ -646,6 +681,7 @@
             Estado en este momento: <b x-text="votEstadoActual"></b>
           </p>
         </div>
+      </div>
       </div>
 
       <!-- ===== ADMINISTRADORES ===== -->
@@ -851,6 +887,9 @@
                 <p class="text-xs" style="color: var(--ink-soft);" x-show="o.contacto_email">
                   📧 <span x-text="o.contacto_email"></span>
                 </p>
+                <p class="text-xs font-bold mt-1 p-2 rounded-xl" style="background: var(--amber-light); color: #8A6417;" x-show="o.revisar">
+                  🚩 Revisar con más detalle<span x-show="o.revisar_nota"> — <span x-text="o.revisar_nota"></span></span>
+                </p>
               </div>
               <span class="chip" :style="colorEstado(o.estado)" x-text="etiquetaEstado(o.estado)"></span>
               <span x-show="!o.tiene_pdf" class="chip font-bold" style="background: var(--magenta-light); color: var(--magenta);">⚠️ Sin PDF</span>
@@ -867,6 +906,10 @@
                 <button x-show="o.portada_path" class="chip" style="background: var(--teal-light); color: var(--teal-deep);"
                         @click="window.open(portadaUrl(o.portada_path), '_blank')">
                   🖼️ Ver portada
+                </button>
+                <button class="chip" :style="o.revisar ? 'background:var(--amber-light);color:#8A6417' : 'background:var(--gray-light);color:var(--ink-soft)'"
+                        @click="marcarRevision(o)">
+                  <span x-text="o.revisar ? '🚩 Quitar marca' : '🚩 Marcar para revisar'"></span>
                 </button>
                 <span class="w-px h-5" style="background: var(--gray-light);"></span>
                 <button class="icon-circle" style="background: var(--green-light);" @click="cambiarEstadoObra(o,'aprobada')" :disabled="obraAccion===o.id || o.estado==='aprobada'" title="Aprobar">✅</button>
@@ -984,6 +1027,13 @@ function app() {
     // --- Panel de admin ---
     adminTab: 'votacion',
     // Votación
+    cargaAbre: '',
+    cargaCierra: '',
+    cargaEstadoActual: '—',
+    cargaMsg: '',
+    cargaError: false,
+    cargaGuardando: false,
+    carga: { abierta: true, abre_at: null, cierra_at: null },   // lo que ve la escuela
     votAbre: '',
     votCierra: '',
     votEstadoActual: '—',
@@ -1227,6 +1277,7 @@ function app() {
       if (e1) {
         this.enviando = false; this.envioError = true;
         this.envioMsg = 'No se pudo crear la obra: ' + e1.message;
+        this.cargarEstadoCarga();
         return;
       }
 
@@ -1306,6 +1357,7 @@ function app() {
     },
 
     async cargarMisProducciones() {
+      this.cargarEstadoCarga();
       this.misProduccionesCargadas = false;
       const [prodRes, histRes] = await Promise.all([
         supabaseClient.from('producciones')
@@ -1619,6 +1671,63 @@ function app() {
       }
       const { data: abierta } = await supabaseClient.rpc('votacion_abierta');
       this.votEstadoActual = abierta ? 'ABIERTA' : 'cerrada';
+      await this.cargarConfigCarga();
+    },
+
+    async cargarConfigCarga() {
+      this.cargaMsg = '';
+      this.cargaError = false;
+      const { data, error } = await supabaseClient.rpc('estado_carga');
+      if (error || !data) { this.cargaEstadoActual = 'sin configurar'; return; }
+      this.cargaAbre = this.aInputLocal(data.abre_at);
+      this.cargaCierra = this.aInputLocal(data.cierra_at);
+      this.cargaEstadoActual = data.abierta ? 'ABIERTA' : 'cerrada';
+    },
+
+    async guardarConfigCarga() {
+      this.cargaMsg = '';
+      this.cargaError = false;
+      this.cargaGuardando = true;
+      const abre = this.cargaAbre ? new Date(this.cargaAbre).toISOString() : null;
+      const cierra = this.cargaCierra ? new Date(this.cargaCierra).toISOString() : null;
+      const { error } = await supabaseClient.rpc('configurar_carga', { p_abre: abre, p_cierra: cierra });
+      this.cargaGuardando = false;
+      if (error) {
+        this.cargaError = true;
+        this.cargaMsg = error.message;
+        return;
+      }
+      await this.cargarConfigCarga();
+      this.cargaMsg = 'Fechas guardadas.';
+    },
+
+    // Estado de la carga para la escuela (si falla la consulta, no se bloquea nada).
+    async cargarEstadoCarga() {
+      const { data, error } = await supabaseClient.rpc('estado_carga');
+      if (!error && data) this.carga = data;
+    },
+    fechaCorta(iso, restarMin) {
+      const d = new Date(new Date(iso).getTime() - (restarMin || 0) * 60000);
+      return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
+    },
+    horaCorta(iso, restarMin) {
+      const d = new Date(new Date(iso).getTime() - (restarMin || 0) * 60000);
+      return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false });
+    },
+    textoCargaCerrada() {
+      const c = this.carga;
+      if (c.abre_at && new Date() < new Date(c.abre_at)) {
+        return 'La carga de obras abre el ' + this.fechaCorta(c.abre_at) + ' a las ' + this.horaCorta(c.abre_at) + '.';
+      }
+      if (c.cierra_at) {
+        return 'La carga de obras cerró el ' + this.fechaCorta(c.cierra_at, 1) + '.';
+      }
+      return 'La carga de obras está cerrada por el momento.';
+    },
+    textoCargaAbierta() {
+      const c = this.carga;
+      if (!c.cierra_at) return '';
+      return 'Podés cargar obras hasta el ' + this.fechaCorta(c.cierra_at, 1) + ' a las ' + this.horaCorta(c.cierra_at, 1) + '.';
     },
 
     async guardarConfigVotacion() {
@@ -1702,22 +1811,42 @@ function app() {
       this.obrasAdminCargadas = false;
       this.obrasMsg = '';
       this.obrasError = false;
-      const [obrasRes, escuelasRes] = await Promise.all([
+      const [obrasRes, escuelasRes, revRes] = await Promise.all([
         supabaseClient.from('producciones')
           .select('id,titulo,nivel,estado,curso_division,docente_responsable,contacto_email,fecha_creacion,escuela_id,pdf_path,portada_path,texto_extraido')
           .order('fecha_creacion', { ascending: false }),
         supabaseClient.from('escuelas').select('id,nombre'),
+        supabaseClient.from('revisiones_obra').select('produccion_id,alerta,nota'),
       ]);
       const escuelas = escuelasRes.data || [];
       const nombrePorId = Object.fromEntries(escuelas.map((e) => [e.id, e.nombre]));
+      const revPorObra = Object.fromEntries((revRes.error ? [] : (revRes.data || [])).map((r) => [r.produccion_id, r]));
       this.obrasAdmin = (obrasRes.data || []).map((o) => ({
         ...o,
         escuela_nombre: nombrePorId[o.escuela_id] || '—',
         tiene_pdf: !!o.pdf_path,
         tiene_audio: !!(o.texto_extraido && o.texto_extraido.trim()),
+        revisar: !!(revPorObra[o.id] && revPorObra[o.id].alerta),
+        revisar_nota: (revPorObra[o.id] && revPorObra[o.id].nota) || '',
       }));
       this.escuelasLista = escuelas.filter((e) => this.obrasAdmin.some((o) => o.escuela_id === e.id));
       this.obrasAdminCargadas = true;
+    },
+
+    async marcarRevision(o) {
+      this.votoError = '';
+      if (o.revisar) {
+        const { error } = await supabaseClient.from('revisiones_obra').delete().eq('produccion_id', o.id);
+        if (error) { this.votoError = 'No se pudo quitar la marca: ' + error.message; return; }
+        o.revisar = false; o.revisar_nota = '';
+        return;
+      }
+      const nota = window.prompt('Nota para el equipo (opcional): ¿qué conviene mirar de esta obra?', '');
+      if (nota === null) return;
+      const { error } = await supabaseClient.from('revisiones_obra')
+        .upsert({ produccion_id: o.id, alerta: true, nota: nota.trim() || null }, { onConflict: 'produccion_id' });
+      if (error) { this.votoError = 'No se pudo marcar la obra: ' + error.message; return; }
+      o.revisar = true; o.revisar_nota = nota.trim();
     },
 
     obrasAdminFiltradas() {
