@@ -600,7 +600,10 @@
             <div class="card p-4">
               <div class="flex items-start gap-3 flex-wrap">
                 <div class="flex-1 min-w-0">
-                  <p class="font-extrabold" x-text="e.nombre"></p>
+                  <p class="font-extrabold">
+                    <span x-text="e.nombre"></span>
+                    <span x-show="e.area" class="chip ml-1 align-middle" style="background: var(--teal-light); color: var(--teal-deep);" x-text="'Área ' + e.area"></span>
+                  </p>
                   <p class="text-xs break-all" style="color: var(--ink-soft);" x-text="enlaceEscuela(e)"></p>
                 </div>
                 <span class="chip" :style="e.activa ? 'background:var(--green-light);color:var(--green)' : 'background:var(--gray-light);color:var(--ink-soft)'"
@@ -922,6 +925,11 @@
       <!-- ===== OBRAS (moderación) ===== -->
       <div x-show="adminTab==='obras'" x-cloak>
         <div class="card p-4 flex gap-3 mb-4 flex-wrap items-center">
+          <select class="!w-auto" x-model="filtroArea">
+            <option value="">Todas las áreas</option>
+            <option value="3">Área 3</option>
+            <option value="4">Área 4</option>
+          </select>
           <select class="!w-auto" x-model="filtroEscuela">
             <option value="">Todas las escuelas</option>
             <template x-for="e in escuelasLista" :key="e.id">
@@ -954,7 +962,7 @@
               <div class="flex-1 min-w-0">
                 <p class="font-extrabold" x-text="o.titulo"></p>
                 <p class="text-xs" style="color: var(--ink-soft);">
-                  <span x-text="o.escuela_nombre"></span> ·
+                  <span x-text="o.escuela_nombre + (o.area ? ' (Área ' + o.area + ')' : '')"></span> ·
                   <span x-text="nombreNivel(o.nivel)"></span> ·
                   <span x-text="o.curso_division"></span> ·
                   <span x-text="o.docente_responsable"></span>
@@ -1140,6 +1148,7 @@ function app() {
     obrasAdmin: [],
     obrasAdminCargadas: false,
     escuelasLista: [],
+    filtroArea: '',
     filtroEscuela: '',
     filtroEstado: '',
     obraAccion: null,
@@ -1675,7 +1684,7 @@ function app() {
       }
       this.escuelasCargadas = false;
       const { data, error } = await supabaseClient.from('escuelas')
-        .select('id,nombre,token_acceso,activa,fecha_alta').order('nombre');
+        .select('id,nombre,token_acceso,activa,fecha_alta,area').order('nombre');
       this.escuelas = (!error && data) ? data : [];
       this.escuelasCargadas = true;
     },
@@ -1981,15 +1990,17 @@ function app() {
         supabaseClient.from('producciones')
           .select('id,titulo,nivel,estado,curso_division,docente_responsable,contacto_email,fecha_creacion,escuela_id,pdf_path,portada_path,texto_extraido')
           .order('fecha_creacion', { ascending: false }),
-        supabaseClient.from('escuelas').select('id,nombre'),
+        supabaseClient.from('escuelas').select('id,nombre,area'),
         supabaseClient.from('revisiones_obra').select('produccion_id,alerta,nota'),
       ]);
       const escuelas = escuelasRes.data || [];
       const nombrePorId = Object.fromEntries(escuelas.map((e) => [e.id, e.nombre]));
+      const areaPorId = Object.fromEntries(escuelas.map((e) => [e.id, e.area]));
       const revPorObra = Object.fromEntries((revRes.error ? [] : (revRes.data || [])).map((r) => [r.produccion_id, r]));
       this.obrasAdmin = (obrasRes.data || []).map((o) => ({
         ...o,
         escuela_nombre: nombrePorId[o.escuela_id] || '—',
+        area: areaPorId[o.escuela_id] || null,
         tiene_pdf: !!o.pdf_path,
         tiene_audio: !!(o.texto_extraido && o.texto_extraido.trim()),
         revisar: !!(revPorObra[o.id] && revPorObra[o.id].alerta),
@@ -2017,6 +2028,7 @@ function app() {
 
     obrasAdminFiltradas() {
       return this.obrasAdmin.filter((o) =>
+        (!this.filtroArea || String(o.area) === this.filtroArea) &&
         (!this.filtroEscuela || o.escuela_id === this.filtroEscuela) &&
         (!this.filtroEstado || o.estado === this.filtroEstado)
       );
