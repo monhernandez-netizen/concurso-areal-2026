@@ -458,6 +458,10 @@
       </div>
 
       <!-- Cargando -->
+      <div x-show="obrasCargadas && textoVotacion()" x-cloak class="card p-3 mb-4 text-sm font-bold text-center"
+           :style="votacion.abierta ? 'background:var(--green-light);color:#1F6B3A' : 'background:var(--amber-light);color:#8A6417'"
+           x-text="textoVotacion()"></div>
+
       <div x-show="!obrasCargadas" class="text-center py-16 text-sm" style="color: var(--ink-soft);">Cargando obras…</div>
 
       <!-- Selección de nivel -->
@@ -518,8 +522,8 @@
                       </button>
                       <button x-show="sesionEmail" class="btn-fill text-sm !py-2 !px-4"
                               @click="votar(o)"
-                              :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel)">
-                        <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel) ? 'Ya votaste' : 'Votar'))"></span>
+                              :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel) || !votacion.abierta">
+                        <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel) ? 'Ya votaste' : (!votacion.abierta ? 'Votación cerrada' : 'Votar')))"></span>
                       </button>
                       <button x-show="!sesionEmail" class="btn-ghost text-sm !py-2 !px-3" @click="salirEscuela()">Entrar para votar</button>
                       <div x-show="o._compartiendo" @click.outside="o._compartiendo = false" x-cloak
@@ -657,7 +661,7 @@
         </div>
       </div>
       <div class="card p-6 max-w-lg">
-        <h3 class="display font-extrabold text-xl mb-1">Fechas de la votación</h3>
+        <h3 class="display font-extrabold text-xl mb-1">Fechas de la votación — etapa 1</h3>
         <p class="text-sm mb-5" style="color: var(--ink-soft);">
           La votación se habilita automáticamente entre estas dos fechas. Si las dejás vacías, queda cerrada.
         </p>
@@ -680,6 +684,81 @@
           <p class="text-xs pt-2" style="color: var(--ink-soft);">
             Estado en este momento: <b x-text="votEstadoActual"></b>
           </p>
+        </div>
+      </div>
+
+      <div class="card p-6 max-w-lg">
+        <h3 class="display font-extrabold text-xl mb-1">Fechas de la votación — final</h3>
+        <p class="text-sm mb-5" style="color: var(--ink-soft);">
+          La votación de las finalistas se habilita sola entre estas fechas, una vez hecho el corte. Si las dejás vacías, queda cerrada.
+        </p>
+        <div class="space-y-4">
+          <div>
+            <label>Apertura</label>
+            <input type="datetime-local" x-model="votFinAbre" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <div>
+            <label>Cierre</label>
+            <input type="datetime-local" x-model="votFinCierra" style="border:2px solid var(--gray-light); background:white; padding:0.7rem 1rem; border-radius:14px; width:100%; font-weight:600;">
+          </div>
+          <p x-show="votFinMsg" x-text="votFinMsg" class="text-sm font-bold" :style="votFinError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+          <button class="btn-fill" @click="guardarConfigFinal()" :disabled="votFinGuardando">
+            <span x-text="votFinGuardando ? 'Guardando…' : 'Guardar fechas'"></span>
+          </button>
+        </div>
+      </div>
+
+      <div class="card p-6 max-w-2xl">
+        <h3 class="display font-extrabold text-xl mb-1">Corte: de la etapa 1 a la final</h3>
+        <p class="text-sm mb-4" style="color: var(--ink-soft);">
+          Etapa en curso: <b x-text="votFase === 1 ? 'Etapa 1' : 'Final'"></b>
+        </p>
+
+        <div x-show="votFase === 1" class="space-y-3">
+          <p class="text-sm" style="color: var(--ink-soft);">
+            Pasa la obra más votada de cada nivel de cada escuela; si hay empate, pasan todas las empatadas. Las que se bajan quedan ocultas, no se borran. Hacelo con la votación de la etapa 1 ya cerrada: la final arranca en cero votos.
+          </p>
+          <button class="btn-ghost" @click="cargarVistaCorte()" :disabled="corteCargando">
+            <span x-text="corteCargando ? 'Calculando…' : 'Ver vista previa del corte'"></span>
+          </button>
+          <p x-show="corteMsg" x-text="corteMsg" class="text-sm font-bold" :style="corteError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+
+          <div x-show="corteVista.length > 0" x-cloak class="space-y-3">
+            <p class="text-sm font-bold">
+              Pasan a la final: <span x-text="corteSeleccionadas()"></span> de <span x-text="corteVista.length"></span> obras aprobadas.
+              <span class="font-normal" style="color: var(--ink-soft);">(Podés tildar o destildar cualquiera antes de confirmar.)</span>
+            </p>
+            <p x-show="corteSinVotos() > 0" class="text-xs font-bold p-2 rounded-xl" style="background: var(--amber-light); color: #8A6417;">
+              ⚠️ En <span x-text="corteSinVotos()"></span> caso(s) todas las obras de la escuela y nivel tienen 0 votos: no marqué ninguna, elegí vos cuál pasa.
+            </p>
+            <div class="space-y-3 overflow-y-auto" style="max-height: 24rem;">
+              <template x-for="g in corteGrupos()" :key="g.clave">
+                <div class="p-3 rounded-2xl" style="background: var(--gray-light);">
+                  <p class="text-xs font-extrabold mb-1" x-text="g.escuela + ' · ' + nombreNivel(g.nivel)"></p>
+                  <template x-for="o in g.obras" :key="o.id">
+                    <label class="flex items-center gap-2 text-sm py-1" style="margin:0; display:flex; font-size:0.875rem; color: var(--ink);">
+                      <input type="checkbox" :checked="corteSel[o.id]" @change="corteSel[o.id] = $event.target.checked">
+                      <span class="flex-1" x-text="o.titulo"></span>
+                      <span class="text-xs" style="color: var(--ink-soft);" x-text="o.votos + ' votos'"></span>
+                      <span x-show="o.empate && !o.sin_votos" class="chip" style="background: var(--amber-light); color:#8A6417;">empate</span>
+                      <span x-show="o.sin_votos" class="chip" style="background: var(--magenta-light); color: var(--magenta);">sin votos</span>
+                    </label>
+                  </template>
+                </div>
+              </template>
+            </div>
+            <button class="btn-fill" @click="aplicarCorte()" :disabled="corteAplicando || !esAdminPrincipal">
+              <span x-text="corteAplicando ? 'Aplicando…' : 'Confirmar corte y pasar a la final'"></span>
+            </button>
+            <p x-show="!esAdminPrincipal" class="text-xs" style="color: var(--ink-soft);">Solo la administradora principal puede confirmar el corte.</p>
+          </div>
+        </div>
+
+        <div x-show="votFase === 2" x-cloak class="space-y-3">
+          <p class="text-sm font-bold" style="color: var(--green);">✅ El corte ya está hecho: la galería muestra solo las finalistas y la votación arranca de cero.</p>
+          <p x-show="corteMsg" x-text="corteMsg" class="text-sm font-bold" :style="corteError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+          <button class="btn-ghost" @click="deshacerCorte()" :disabled="corteAplicando || !esAdminPrincipal">Deshacer corte</button>
+          <p class="text-xs" style="color: var(--ink-soft);">Deshacer vuelve todo a la etapa 1 y borra los votos de la final (los de la etapa 1 se recuperan).</p>
         </div>
       </div>
       </div>
@@ -1027,6 +1106,19 @@ function app() {
     // --- Panel de admin ---
     adminTab: 'votacion',
     // Votación
+    votFase: 1,
+    votFinAbre: '',
+    votFinCierra: '',
+    votFinMsg: '',
+    votFinError: false,
+    votFinGuardando: false,
+    corteVista: [],
+    corteSel: {},
+    corteCargando: false,
+    corteAplicando: false,
+    corteMsg: '',
+    corteError: false,
+    votacion: { fase: 1, abierta: true, abre_at: null, cierra_at: null },   // lo que ve el público
     cargaAbre: '',
     cargaCierra: '',
     cargaEstadoActual: '—',
@@ -1668,10 +1760,88 @@ function app() {
       if (!error && data) {
         this.votAbre = this.aInputLocal(data.abre_at);
         this.votCierra = this.aInputLocal(data.cierra_at);
+        this.votFase = data.fase || 1;
+        this.votFinAbre = this.aInputLocal(data.abre2_at);
+        this.votFinCierra = this.aInputLocal(data.cierra2_at);
       }
       const { data: abierta } = await supabaseClient.rpc('votacion_abierta');
       this.votEstadoActual = abierta ? 'ABIERTA' : 'cerrada';
       await this.cargarConfigCarga();
+    },
+
+    async guardarConfigFinal() {
+      this.votFinMsg = '';
+      this.votFinError = false;
+      this.votFinGuardando = true;
+      const abre = this.votFinAbre ? new Date(this.votFinAbre).toISOString() : null;
+      const cierra = this.votFinCierra ? new Date(this.votFinCierra).toISOString() : null;
+      const { error } = await supabaseClient.rpc('configurar_votacion_final', { p_abre: abre, p_cierra: cierra });
+      this.votFinGuardando = false;
+      if (error) { this.votFinError = true; this.votFinMsg = error.message; return; }
+      await this.cargarConfigVotacion();
+      this.votFinMsg = 'Fechas guardadas.';
+    },
+
+    async cargarVistaCorte() {
+      this.corteMsg = ''; this.corteError = false; this.corteCargando = true;
+      const { data, error } = await supabaseClient.rpc('vista_previa_corte');
+      this.corteCargando = false;
+      if (error) { this.corteError = true; this.corteMsg = error.message; return; }
+      this.corteVista = Array.isArray(data) ? data : [];
+      this.corteSel = Object.fromEntries(this.corteVista.map((o) => [o.id, !!o.pasa]));
+      if (!this.corteVista.length) this.corteMsg = 'Todavía no hay obras aprobadas para hacer el corte.';
+    },
+    corteGrupos() {
+      const grupos = [];
+      const porClave = {};
+      for (const o of this.corteVista) {
+        const clave = o.escuela + '|' + o.nivel;
+        if (!porClave[clave]) { porClave[clave] = { clave, escuela: o.escuela, nivel: o.nivel, obras: [] }; grupos.push(porClave[clave]); }
+        porClave[clave].obras.push(o);
+      }
+      return grupos;
+    },
+    corteSeleccionadas() { return Object.values(this.corteSel).filter(Boolean).length; },
+    corteSinVotos() { return new Set(this.corteVista.filter((o) => o.sin_votos).map((o) => o.escuela + '|' + o.nivel)).size; },
+
+    async aplicarCorte() {
+      const ids = Object.keys(this.corteSel).filter((id) => this.corteSel[id]);
+      const ok = window.confirm('¿Confirmás el corte?\n\nPasan ' + ids.length + ' obras a la final y el resto se oculta de la galería (no se borran). Los votos de la etapa 1 se guardan y la final arranca en cero.');
+      if (!ok) return;
+      this.corteMsg = ''; this.corteError = false; this.corteAplicando = true;
+      const { data, error } = await supabaseClient.rpc('aplicar_corte', { p_ids: ids });
+      this.corteAplicando = false;
+      if (error) { this.corteError = true; this.corteMsg = error.message; return; }
+      this.corteVista = []; this.corteSel = {};
+      await this.cargarConfigVotacion();
+      this.corteMsg = 'Corte hecho: ' + (data && data.finalistas) + ' finalistas, ' + (data && data.descartadas) + ' obras bajadas.';
+    },
+
+    async deshacerCorte() {
+      const ok = window.confirm('¿Deshacer el corte?\n\nVuelve todo a la etapa 1 y se borran los votos de la final.');
+      if (!ok) return;
+      this.corteMsg = ''; this.corteError = false; this.corteAplicando = true;
+      const { error } = await supabaseClient.rpc('deshacer_corte');
+      this.corteAplicando = false;
+      if (error) { this.corteError = true; this.corteMsg = error.message; return; }
+      await this.cargarConfigVotacion();
+      this.corteMsg = 'Corte deshecho: volvimos a la etapa 1.';
+    },
+
+    // Cartel para el público según la etapa y las fechas
+    textoVotacion() {
+      const v = this.votacion;
+      const fin = v.fase === 2;
+      const nombre = fin ? 'la votación final' : 'la votación de la etapa 1';
+      if (v.abierta) {
+        const hasta = v.cierra_at ? ' Podés votar hasta el ' + this.fechaCorta(v.cierra_at) + ' a las ' + this.horaCorta(v.cierra_at) + '.' : '';
+        return (fin ? '🏁 ¡Llegó la final! ' : '🗳️ ') + 'La votación está abierta.' + hasta;
+      }
+      if (v.abre_at && new Date() < new Date(v.abre_at)) {
+        return 'La ' + nombre.slice(3) + ' abre el ' + this.fechaCorta(v.abre_at) + ' a las ' + this.horaCorta(v.abre_at) + '.';
+      }
+      return fin ? 'La votación final ya cerró. Pronto se conocen los resultados.'
+                 : 'La votación de la etapa 1 ya cerró. Pronto se conocen las obras finalistas.';
     },
 
     async cargarConfigCarga() {
@@ -1948,10 +2118,12 @@ function app() {
 
     async cargarObrasPublico({ mostrarCarga = true } = {}) {
       if (mostrarCarga) this.obrasCargadas = false;
-      const [obrasRes, votosRes] = await Promise.all([
+      const [obrasRes, votosRes, estadoRes] = await Promise.all([
         supabaseClient.from('ranking_producciones').select('*').order('votos_total', { ascending: false }),
         supabaseClient.rpc('mis_votos'),
+        supabaseClient.rpc('estado_votacion'),
       ]);
+      if (!estadoRes.error && estadoRes.data) this.votacion = estadoRes.data;
       this.obras = (!obrasRes.error && obrasRes.data) ? obrasRes.data : [];
       // votadoNivel viene de la BASE (fuente de verdad), no del navegador
       this.votadoNivel = {};
