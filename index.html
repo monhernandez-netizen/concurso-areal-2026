@@ -450,6 +450,28 @@
       </div>
 
       <!-- Cargando -->
+      <div x-show="resultados && resultados.length" x-cloak class="card p-5 mb-6">
+        <h2 class="display font-extrabold text-2xl mb-1">🎉 Resultados de la final</h2>
+        <p class="text-sm mb-4" style="color: var(--ink-soft);">Las obras más votadas de cada área y nivel.</p>
+        <template x-for="a in [3, 4]" :key="a">
+          <div class="mb-4" x-show="resultados && resultados.some((r) => r.area === a)">
+            <p class="text-xs font-extrabold mb-2" style="color: var(--wine);" x-text="'ÁREA ' + a"></p>
+            <div class="grid sm:grid-cols-3 gap-3">
+              <template x-for="r in (resultados || []).filter((x) => x.area === a)" :key="r.produccion_id">
+                <div class="rounded-2xl p-4" style="background: var(--gray-light);">
+                  <span class="chip text-white" :style="`background:${colorNivel(r.nivel)}`" x-text="nombreNivel(r.nivel)"></span>
+                  <p class="font-extrabold display mt-2" x-text="r.titulo"></p>
+                  <p class="text-xs" style="color: var(--ink-soft);" x-text="r.escuela_nombre"></p>
+                  <p class="text-xs" style="color: var(--ink-soft);" x-show="r.autores_publicos" x-text="'✍️ ' + r.autores_publicos"></p>
+                  <p class="text-xs font-bold mt-1" style="color: var(--ink-soft);" x-text="'❤️ ' + r.votos_total + ' votos' + (r.empate ? ' · empate' : '')"></p>
+                  <button x-show="r.tiene_pdf" @click="leerObra(r)" class="chip mt-2" style="background: var(--teal-light); color: var(--teal-deep);">📖 Leer</button>
+                </div>
+              </template>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <div x-show="obrasCargadas && textoVotacion()" x-cloak class="card p-3 mb-4 text-sm font-bold text-center"
            :style="votacion.abierta ? 'background:var(--green-light);color:#1F6B3A' : 'background:var(--amber-light);color:#8A6417'"
            x-text="textoVotacion()"></div>
@@ -774,6 +796,20 @@
           <button class="btn-ghost" @click="deshacerCorte()" :disabled="corteAplicando || !esAdminPrincipal">Deshacer corte</button>
           <p class="text-xs" style="color: var(--ink-soft);">Deshacer vuelve todo a la etapa 1 y borra los votos de la final (los de la etapa 1 se recuperan).</p>
         </div>
+      </div>
+
+      <div class="card p-6 max-w-lg">
+        <h3 class="display font-extrabold text-xl mb-1">Resultados de la final</h3>
+        <p class="text-sm mb-4" style="color: var(--ink-soft);">
+          Cuando cierre la final, publicá los resultados: las obras más votadas de cada área y nivel aparecen arriba de la galería, para todo el público. Hasta que los publiques, no se ve nada.
+        </p>
+        <p class="text-sm mb-3">Estado: <b x-text="resultadosPublicados ? 'PUBLICADOS' : 'ocultos'"></b></p>
+        <p x-show="resultadosMsg" x-text="resultadosMsg" class="text-sm font-bold mb-3" :style="resultadosError ? 'color:var(--magenta)' : 'color:var(--green)'"></p>
+        <button x-show="!resultadosPublicados" class="btn-fill" @click="publicarResultados(true)" :disabled="resultadosGuardando || !esAdminPrincipal">
+          <span x-text="resultadosGuardando ? 'Publicando…' : '🎉 Publicar resultados'"></span>
+        </button>
+        <button x-show="resultadosPublicados" x-cloak class="btn-ghost" @click="publicarResultados(false)" :disabled="resultadosGuardando || !esAdminPrincipal">Ocultar resultados</button>
+        <p x-show="!esAdminPrincipal" class="text-xs mt-2" style="color: var(--ink-soft);">Solo la administradora principal puede publicar los resultados.</p>
       </div>
       </div>
 
@@ -1160,6 +1196,11 @@ function app() {
     votFinGuardando: false,
     corteVista: [],
     corteSel: {},
+    resultadosPublicados: false,
+    resultadosMsg: '',
+    resultadosError: false,
+    resultadosGuardando: false,
+    resultados: null,             // lo que ve el público (null = todavía ocultos)
     corteCargando: false,
     corteArea: '',
     corteAplicando: false,
@@ -1818,6 +1859,7 @@ function app() {
         this.votAbre = this.aInputLocal(data.abre_at);
         this.votCierra = this.aInputLocal(data.cierra_at);
         this.votFase = data.fase || 1;
+        this.resultadosPublicados = !!data.resultados_publicados;
         this.votFinAbre = this.aInputLocal(data.abre2_at);
         this.votFinCierra = this.aInputLocal(data.cierra2_at);
       }
@@ -1883,6 +1925,19 @@ function app() {
       this.corteMsg = 'Corte hecho: ' + (data && data.finalistas) + ' finalistas, ' + (data && data.descartadas) + ' obras bajadas.';
     },
 
+    async publicarResultados(publicar) {
+      const ok = window.confirm(publicar
+        ? '¿Publicar los resultados?\n\nVan a verse arriba de la galería para todo el público.'
+        : '¿Ocultar los resultados?\n\nDejan de verse en la galería.');
+      if (!ok) return;
+      this.resultadosMsg = ''; this.resultadosError = false; this.resultadosGuardando = true;
+      const { error } = await supabaseClient.rpc('publicar_resultados', { p_publicar: publicar });
+      this.resultadosGuardando = false;
+      if (error) { this.resultadosError = true; this.resultadosMsg = error.message; return; }
+      await this.cargarConfigVotacion();
+      this.resultadosMsg = publicar ? 'Resultados publicados.' : 'Resultados ocultos.';
+    },
+
     async deshacerCorte() {
       const ok = window.confirm('¿Deshacer el corte?\n\nVuelve todo a la etapa 1 y se borran los votos de la final.');
       if (!ok) return;
@@ -1897,6 +1952,7 @@ function app() {
     // Cartel para el público según la etapa y las fechas
     textoVotacion() {
       const v = this.votacion;
+      if (this.resultados && this.resultados.length) return 'La votación final terminó. ¡Gracias por participar!';
       const fin = v.fase === 2;
       const nombre = fin ? 'la votación final' : 'la votación de la etapa 1';
       if (v.abierta) {
@@ -2187,12 +2243,14 @@ function app() {
 
     async cargarObrasPublico({ mostrarCarga = true } = {}) {
       if (mostrarCarga) this.obrasCargadas = false;
-      const [obrasRes, votosRes, estadoRes] = await Promise.all([
+      const [obrasRes, votosRes, estadoRes, resultRes] = await Promise.all([
         supabaseClient.from('ranking_producciones').select('*').order('votos_total', { ascending: false }),
         supabaseClient.rpc('mis_votos'),
         supabaseClient.rpc('estado_votacion'),
+        supabaseClient.rpc('resultados_finales'),
       ]);
       if (!estadoRes.error && estadoRes.data) this.votacion = estadoRes.data;
+      this.resultados = (!resultRes.error && Array.isArray(resultRes.data)) ? resultRes.data : null;
       this.obras = (!obrasRes.error && obrasRes.data) ? obrasRes.data : [];
       // votadoNivel viene de la BASE (fuente de verdad), no del navegador
       this.votadoNivel = {};
