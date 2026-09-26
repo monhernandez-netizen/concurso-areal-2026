@@ -1021,6 +1021,13 @@
             <option value="rechazada">Rechazada</option>
           </select>
           <button class="text-sm font-bold" style="color: var(--teal);" @click="cargarObrasAdmin()">↻ Actualizar</button>
+          <span class="flex-1"></span>
+          <button class="chip" style="background: var(--amber-light); color: #8A6417;" @click="copiarObrasParaRevisar(false)"
+                  title="Copia el texto de las próximas pendientes (hasta 15) para pegarlo en el chat con Claude">
+            📋 Copiar obras para revisar
+          </button>
+          <button class="text-xs font-bold" style="color: var(--ink-soft);" @click="copiarObrasParaRevisar(true)"
+                  title="Vuelve a empezar: incluye también las que ya copiaste antes">Empezar de nuevo</button>
         </div>
 
         <p x-show="obrasMsg" x-text="obrasMsg" class="card p-3 mb-4 text-sm font-bold"
@@ -2141,6 +2148,37 @@ function app() {
         .upsert({ produccion_id: o.id, alerta: true, nota: nota.trim() || null }, { onConflict: 'produccion_id' });
       if (error) { this.votoError = 'No se pudo marcar la obra: ' + error.message; return; }
       o.revisar = true; o.revisar_nota = nota.trim();
+    },
+
+    // Arma un texto con las obras pendientes (sin marca y aún no copiadas) para pegarlo en el chat con Claude.
+    async copiarObrasParaRevisar(todas) {
+      this.obrasMsg = ''; this.obrasError = false;
+      const LOTE = 15, MAX_CHARS = 5000;
+      let copiadas = [];
+      try { copiadas = JSON.parse(localStorage.getItem('concurso_obras_copiadas') || '[]'); } catch (e) {}
+      if (todas) copiadas = [];
+      const candidatas = this.obrasAdmin
+        .filter((o) => o.estado === 'pendiente' && o.tiene_audio && !o.revisar && !copiadas.includes(o.id))
+        .reverse(); // las más viejas primero
+      if (!candidatas.length) {
+        this.obrasMsg = 'No hay obras pendientes nuevas para revisar.';
+        return;
+      }
+      const lote = candidatas.slice(0, LOTE);
+      const partes = lote.map((o, i) => {
+        let texto = (o.texto_extraido || '').trim();
+        if (texto.length > MAX_CHARS) texto = texto.slice(0, MAX_CHARS) + '\n[…texto recortado…]';
+        return `=== OBRA ${i + 1} ===\nID: ${o.id}\nTítulo: ${o.titulo}\nNivel: ${this.nombreNivel(o.nivel)}\nEscuela: ${o.escuela_nombre}${o.area ? ' (Área ' + o.area + ')' : ''}\nTexto:\n${texto}`;
+      });
+      const salida = 'Revisá estas obras de Producciones Colectivas:\n\n' + partes.join('\n\n');
+      try {
+        await navigator.clipboard.writeText(salida);
+      } catch (e) {
+        window.prompt('No se pudo copiar solo. Copiá este texto (Ctrl+C):', salida);
+      }
+      try { localStorage.setItem('concurso_obras_copiadas', JSON.stringify(copiadas.concat(lote.map((o) => o.id)))); } catch (e) {}
+      const quedan = candidatas.length - lote.length;
+      this.obrasMsg = `Copiadas ${lote.length} obras. Pegalas en el chat con Claude.` + (quedan ? ` Quedan ${quedan} más: volvé a tocar el botón para la siguiente tanda.` : '');
     },
 
     obrasAdminFiltradas() {
