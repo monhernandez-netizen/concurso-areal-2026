@@ -463,7 +463,7 @@
       <!-- Selección de nivel -->
       <div x-show="obrasCargadas && !nivelPublico" class="max-w-3xl mx-auto text-center">
         <h2 class="display font-extrabold text-2xl mb-1">¿Qué nivel querés ver?</h2>
-        <p class="text-sm mb-10" style="color: var(--ink-soft);">Elegí un nivel para leer las obras y votar tu favorita. Podés votar una obra por nivel.</p>
+        <p class="text-sm mb-10" style="color: var(--ink-soft);">Elegí un nivel para leer las obras y votar tu favorita. Podés votar una obra por nivel en cada área.</p>
         <div class="flex flex-col sm:flex-row justify-center items-center gap-6">
           <template x-for="n in ['nivel_1','nivel_2','nivel_3']" :key="n">
             <button @click="nivelPublico = n" class="card p-8 text-center hover:-translate-y-1 transition-transform w-full sm:w-48">
@@ -479,15 +479,26 @@
       <div x-show="obrasCargadas && nivelPublico" x-cloak>
         <button @click="nivelPublico = null; votoError=''; pararLectura(); reproduciendoId=null" class="text-sm font-bold mb-4" style="color: var(--teal);">‹ Cambiar de nivel</button>
 
+        <div class="flex gap-2 mb-2 flex-wrap">
+          <template x-for="a in [3, 4]" :key="a">
+            <button @click="areaPublico = a; votoError=''; pararLectura(); reproduciendoId=null"
+                    :class="areaPublico === a ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">
+              <span x-text="'Área ' + a"></span>
+              <span class="text-xs opacity-80" x-text="'· ' + obrasDeNivelArea(nivelPublico, a).length"></span>
+            </button>
+          </template>
+        </div>
+        <p class="text-xs mb-4" style="color: var(--ink-soft);">Podés votar una obra por nivel en cada área.</p>
+
         <p x-show="votoError" x-text="votoError" class="card p-3 mb-4 text-sm font-bold" style="background: var(--magenta-light); color: var(--magenta);"></p>
 
-        <div x-show="obrasDeNivel(nivelPublico).length === 0" class="card p-8 text-center text-sm" style="color: var(--ink-soft);">
-          Todavía no hay obras aprobadas en este nivel.
+        <div x-show="obrasDeNivelArea(nivelPublico, areaPublico).length === 0" class="card p-8 text-center text-sm" style="color: var(--ink-soft);">
+          Todavía no hay obras aprobadas en este nivel y área.
         </div>
 
-        <div class="grid md:grid-cols-3 gap-8" x-show="obrasDeNivel(nivelPublico).length > 0">
+        <div class="grid md:grid-cols-3 gap-8" x-show="obrasDeNivelArea(nivelPublico, areaPublico).length > 0">
           <div class="md:col-span-2 grid sm:grid-cols-2 gap-5">
-            <template x-for="o in obrasDeNivel(nivelPublico)" :key="o.produccion_id">
+            <template x-for="o in obrasDeNivelArea(nivelPublico, areaPublico)" :key="o.produccion_id">
               <div class="card" :id="'obra-' + o.produccion_id"
                    :style="o.produccion_id === obraDestacadaId ? 'outline:3px solid var(--teal);outline-offset:2px' : ''">
                 <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" class="h-20 w-full object-cover rounded-t-[20px]">
@@ -518,8 +529,8 @@
                       </button>
                       <button x-show="sesionEmail" class="btn-fill text-sm !py-2 !px-4"
                               @click="votar(o)"
-                              :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel) || !votacion.abierta">
-                        <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel) ? 'Ya votaste' : (!votacion.abierta ? 'Votación cerrada' : 'Votar')))"></span>
+                              :disabled="votando === o.produccion_id || yaVotoEnNivel(o.nivel, o.area) || !votacion.abierta">
+                        <span x-text="votando === o.produccion_id ? '…' : (votadoNivel[o.nivel + '|' + o.area] === o.produccion_id ? '✓ Votaste' : (yaVotoEnNivel(o.nivel, o.area) ? 'Ya votaste' : (!votacion.abierta ? 'Votación cerrada' : 'Votar')))"></span>
                       </button>
                       <button x-show="!sesionEmail" class="btn-ghost text-sm !py-2 !px-3" @click="salirEscuela()">Entrar para votar</button>
                       <div x-show="o._compartiendo" @click.outside="o._compartiendo = false" x-cloak
@@ -540,7 +551,7 @@
 
           <div class="card p-5 h-fit">
             <h3 class="display font-extrabold text-lg mb-1">🏆 Ranking</h3>
-            <p class="text-xs font-bold mb-3" style="color: var(--ink-soft);" x-text="nombreNivel(nivelPublico)"></p>
+            <p class="text-xs font-bold mb-3" style="color: var(--ink-soft);" x-text="nombreNivel(nivelPublico) + ' · Área ' + areaPublico"></p>
             <ol class="space-y-3">
               <template x-for="(o, i) in rankingDeNivel(nivelPublico)" :key="o.produccion_id">
                 <li class="flex items-center gap-3">
@@ -1099,7 +1110,8 @@ function app() {
     obrasCargadas: false,
     votando: null,                // id de la obra que se está votando
     votoError: '',
-    votadoNivel: {},              // { nivel_1: id_obra, ... } — recordatorio local (la base es la que manda)
+    votadoNivel: {},              // { 'nivel_1|3': id_obra, ... } — recordatorio local (la base es la que manda)
+    areaPublico: 3,               // área que se está mirando en la galería (3 o 4)
     leyendoId: null,              // obra cuyo PDF se está abriendo
     reproduciendoId: null,        // obra que se está leyendo en voz alta
     pdfViendo: false,             // modal de lectura abierto
@@ -1229,6 +1241,7 @@ function app() {
       const obra = this.obras.find((o) => o.produccion_id === id);
       if (obra) {
         this.nivelPublico = obra.nivel;
+        if (obra.area) this.areaPublico = obra.area;
         this.obraDestacadaId = id;
         await this.$nextTick();
         const el = document.getElementById('obra-' + id);
@@ -2136,7 +2149,7 @@ function app() {
       // votadoNivel viene de la BASE (fuente de verdad), no del navegador
       this.votadoNivel = {};
       if (!votosRes.error && Array.isArray(votosRes.data)) {
-        for (const v of votosRes.data) this.votadoNivel[v.nivel] = v.produccion_id;
+        for (const v of votosRes.data) this.votadoNivel[v.nivel + '|' + v.area] = v.produccion_id;
       }
       this.obrasCargadas = true;
     },
@@ -2144,11 +2157,16 @@ function app() {
     obrasDeNivel(nivel) {
       return this.obras.filter(o => o.nivel === nivel);
     },
-    rankingDeNivel(nivel) {
-      return [...this.obrasDeNivel(nivel)].sort((a, b) => a.posicion - b.posicion);
+    obrasDeNivelArea(nivel, area) {
+      return this.obras.filter(o => o.nivel === nivel && o.area === area);
     },
-    yaVotoEnNivel(nivel) {
-      return !!this.votadoNivel[nivel];
+    // El ranking se arma por nivel y por área (la que se está mirando).
+    rankingDeNivel(nivel) {
+      return [...this.obrasDeNivelArea(nivel, this.areaPublico)].sort((a, b) => a.posicion - b.posicion);
+    },
+    // Se vota una obra por nivel en cada área.
+    yaVotoEnNivel(nivel, area) {
+      return !!this.votadoNivel[nivel + '|' + area];
     },
 
     async votar(obra) {
@@ -2160,11 +2178,11 @@ function app() {
       });
       this.votando = null;
       if (error) {
-        if (error.code === '23505') this.votoError = 'Ya votaste una obra en este nivel.';
+        if (error.code === '23505') this.votoError = 'Ya votaste una obra en este nivel y área.';
         else this.votoError = error.message || 'No se pudo registrar el voto.';
         return;
       }
-      this.votadoNivel[obra.nivel] = obra.produccion_id; // feedback inmediato
+      this.votadoNivel[obra.nivel + '|' + obra.area] = obra.produccion_id; // feedback inmediato
       await this.cargarObrasPublico({ mostrarCarga: false });
     },
 
