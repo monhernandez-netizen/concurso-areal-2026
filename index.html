@@ -734,13 +734,21 @@
               Pasan a la final: <span x-text="corteSeleccionadas()"></span> de <span x-text="corteVista.length"></span> obras aprobadas.
               <span class="font-normal" style="color: var(--ink-soft);">(Podés tildar o destildar cualquiera antes de confirmar.)</span>
             </p>
+            <p class="text-xs font-bold" style="color: var(--ink-soft);">
+              Área 3: <span x-text="corteSeleccionadasArea(3)"></span> finalistas · Área 4: <span x-text="corteSeleccionadasArea(4)"></span> finalistas
+            </p>
+            <select class="!w-auto" x-model="corteArea">
+              <option value="">Ver todas las áreas</option>
+              <option value="3">Solo Área 3</option>
+              <option value="4">Solo Área 4</option>
+            </select>
             <p x-show="corteSinVotos() > 0" class="text-xs font-bold p-2 rounded-xl" style="background: var(--amber-light); color: #8A6417;">
               ⚠️ En <span x-text="corteSinVotos()"></span> caso(s) todas las obras de la escuela y nivel tienen 0 votos: no marqué ninguna, elegí vos cuál pasa.
             </p>
             <div class="space-y-3 overflow-y-auto" style="max-height: 24rem;">
               <template x-for="g in corteGrupos()" :key="g.clave">
                 <div class="p-3 rounded-2xl" style="background: var(--gray-light);">
-                  <p class="text-xs font-extrabold mb-1" x-text="g.escuela + ' · ' + nombreNivel(g.nivel)"></p>
+                  <p class="text-xs font-extrabold mb-1" x-text="g.escuela + (g.area ? ' (Área ' + g.area + ')' : '') + ' · ' + nombreNivel(g.nivel)"></p>
                   <template x-for="o in g.obras" :key="o.id">
                     <label class="flex items-center gap-2 text-sm py-1" style="margin:0; display:flex; font-size:0.875rem; color: var(--ink);">
                       <input type="checkbox" :checked="corteSel[o.id]" @change="corteSel[o.id] = $event.target.checked">
@@ -1153,6 +1161,7 @@ function app() {
     corteVista: [],
     corteSel: {},
     corteCargando: false,
+    corteArea: '',
     corteAplicando: false,
     corteMsg: '',
     corteError: false,
@@ -1832,19 +1841,28 @@ function app() {
 
     async cargarVistaCorte() {
       this.corteMsg = ''; this.corteError = false; this.corteCargando = true;
-      const { data, error } = await supabaseClient.rpc('vista_previa_corte');
+      const [{ data, error }, escRes] = await Promise.all([
+        supabaseClient.rpc('vista_previa_corte'),
+        supabaseClient.from('escuelas').select('nombre,area'),
+      ]);
       this.corteCargando = false;
       if (error) { this.corteError = true; this.corteMsg = error.message; return; }
-      this.corteVista = Array.isArray(data) ? data : [];
+      const areaPorNombre = Object.fromEntries((escRes.data || []).map((e) => [e.nombre, e.area]));
+      this.corteVista = (Array.isArray(data) ? data : []).map((o) => ({ ...o, area: areaPorNombre[o.escuela] || null }));
+      this.corteArea = '';
       this.corteSel = Object.fromEntries(this.corteVista.map((o) => [o.id, !!o.pasa]));
       if (!this.corteVista.length) this.corteMsg = 'Todavía no hay obras aprobadas para hacer el corte.';
+    },
+    corteSeleccionadasArea(area) {
+      return this.corteVista.filter((o) => o.area === area && this.corteSel[o.id]).length;
     },
     corteGrupos() {
       const grupos = [];
       const porClave = {};
       for (const o of this.corteVista) {
+        if (this.corteArea && String(o.area) !== this.corteArea) continue;
         const clave = o.escuela + '|' + o.nivel;
-        if (!porClave[clave]) { porClave[clave] = { clave, escuela: o.escuela, nivel: o.nivel, obras: [] }; grupos.push(porClave[clave]); }
+        if (!porClave[clave]) { porClave[clave] = { clave, escuela: o.escuela, area: o.area, nivel: o.nivel, obras: [] }; grupos.push(porClave[clave]); }
         porClave[clave].obras.push(o);
       }
       return grupos;
