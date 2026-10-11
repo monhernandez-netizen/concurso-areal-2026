@@ -1040,6 +1040,10 @@
             </span>
             <span class="text-sm font-bold" style="color: var(--teal);" x-text="verResumenEscuelas ? '▲ Ocultar' : '▼ Ver'"></span>
           </button>
+          <div x-show="verResumenEscuelas" class="flex items-center gap-3 mt-2 flex-wrap">
+            <button class="chip" style="background: var(--teal-light); color: var(--teal-deep);" @click="copiarResumenEscuelas()">📋 Copiar para Excel o Word</button>
+            <span class="text-xs font-bold" style="color: var(--green);" x-show="resumenCopiado">¡Copiado! Pegalo en tu reporte.</span>
+          </div>
           <div x-show="verResumenEscuelas" class="overflow-x-auto mt-2">
             <table class="w-full text-sm">
               <thead>
@@ -1240,7 +1244,7 @@ function app() {
     obraDestacadaId: '',           // obra a la que se saltó por un enlace compartido
 
     // --- Panel de admin ---
-    adminTab: 'votacion',
+    adminTab: 'obras',
     // Votación
     votFase: 1,
     votFinAbre: '',
@@ -1288,6 +1292,7 @@ function app() {
     escuelasLista: [],
     resumenEscuelas: [],
     verResumenEscuelas: true,
+    resumenCopiado: false,
     filtroArea: '',
     filtroEscuela: '',
     filtroEstado: '',
@@ -2193,6 +2198,22 @@ function app() {
         };
       }).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
       this.obrasAdminCargadas = true;
+    },
+
+    // Copia el resumen por escuela separado por tabuladores (se pega bien en Excel y en tablas de Word).
+    async copiarResumenEscuelas() {
+      const filas = [['Escuela', 'Área', 'Subidas', 'Nivel 1', 'Nivel 2', 'Nivel 3', 'Aprobadas', 'Pendientes', 'Sin PDF']]
+        .concat(this.resumenEscuelas.map((r) => [r.nombre, r.area || '', r.total, r.n1, r.n2, r.n3, r.aprobadas, r.pendientes, r.sinPdf]));
+      const suma = (k) => this.resumenEscuelas.reduce((s, r) => s + r[k], 0);
+      filas.push(['TOTAL', '', suma('total'), suma('n1'), suma('n2'), suma('n3'), suma('aprobadas'), suma('pendientes'), suma('sinPdf')]);
+      const texto = filas.map((f) => f.join('\t')).join('\n');
+      try {
+        await navigator.clipboard.writeText(texto);
+      } catch (e) {
+        window.prompt('No se pudo copiar solo. Copiá este texto (Ctrl+C):', texto);
+      }
+      this.resumenCopiado = true;
+      setTimeout(() => { this.resumenCopiado = false; }, 4000);
     },
 
     async marcarRevision(o) {
