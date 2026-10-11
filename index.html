@@ -1030,6 +1030,53 @@
                   title="Vuelve a empezar: incluye también las que ya copiaste antes">Empezar de nuevo</button>
         </div>
 
+        <!-- Resumen: obras subidas por escuela -->
+        <div class="card p-3 mb-4" x-show="obrasAdminCargadas">
+          <button class="w-full flex items-center justify-between gap-2 text-left" @click="verResumenEscuelas = !verResumenEscuelas">
+            <span class="font-extrabold">
+              🏫 Obras por escuela
+              <span class="text-xs font-bold" style="color: var(--ink-soft);"
+                    x-text="'· ' + obrasAdmin.length + ' obras en total · ' + resumenEscuelas.filter(r => r.total === 0).length + ' escuelas sin obras'"></span>
+            </span>
+            <span class="text-sm font-bold" style="color: var(--teal);" x-text="verResumenEscuelas ? '▲ Ocultar' : '▼ Ver'"></span>
+          </button>
+          <div x-show="verResumenEscuelas" class="overflow-x-auto mt-2">
+            <table class="w-full text-sm">
+              <thead>
+                <tr style="color: var(--ink-soft);" class="text-xs text-left">
+                  <th class="p-2">Escuela</th>
+                  <th class="p-2 text-center">Área</th>
+                  <th class="p-2 text-center">Subidas</th>
+                  <th class="p-2 text-center">N1</th>
+                  <th class="p-2 text-center">N2</th>
+                  <th class="p-2 text-center">N3</th>
+                  <th class="p-2 text-center">Aprobadas</th>
+                  <th class="p-2 text-center">Pendientes</th>
+                  <th class="p-2 text-center">Sin PDF</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="r in resumenEscuelas" :key="r.id">
+                  <tr class="border-t cursor-pointer" style="border-color: var(--gray-light);"
+                      :style="r.total === 0 ? 'background: var(--magenta-light);' : ''"
+                      @click="filtroEscuela = r.id; filtroArea = ''; filtroEstado = ''" title="Filtrar las obras de esta escuela">
+                    <td class="p-2 font-bold" x-text="r.nombre"></td>
+                    <td class="p-2 text-center" x-text="r.area || '—'"></td>
+                    <td class="p-2 text-center font-extrabold" x-text="r.total"></td>
+                    <td class="p-2 text-center" x-text="r.n1"></td>
+                    <td class="p-2 text-center" x-text="r.n2"></td>
+                    <td class="p-2 text-center" x-text="r.n3"></td>
+                    <td class="p-2 text-center" x-text="r.aprobadas"></td>
+                    <td class="p-2 text-center" x-text="r.pendientes"></td>
+                    <td class="p-2 text-center" :style="r.sinPdf ? 'color: var(--magenta); font-weight: 800;' : ''" x-text="r.sinPdf"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <p class="text-xs mt-2" style="color: var(--ink-soft);">Las escuelas en rosa todavía no subieron ninguna obra. Tocá una fila para ver solo sus obras.</p>
+          </div>
+        </div>
+
         <p x-show="obrasMsg" x-text="obrasMsg" class="card p-3 mb-4 text-sm font-bold"
            :style="obrasError ? 'background:var(--magenta-light);color:var(--magenta)' : 'background:var(--green-light);color:var(--green)'"></p>
 
@@ -1239,6 +1286,8 @@ function app() {
     obrasAdmin: [],
     obrasAdminCargadas: false,
     escuelasLista: [],
+    resumenEscuelas: [],
+    verResumenEscuelas: true,
     filtroArea: '',
     filtroEscuela: '',
     filtroEstado: '',
@@ -2131,6 +2180,18 @@ function app() {
         revisar_nota: (revPorObra[o.id] && revPorObra[o.id].nota) || '',
       }));
       this.escuelasLista = escuelas.filter((e) => this.obrasAdmin.some((o) => o.escuela_id === e.id));
+      this.resumenEscuelas = escuelas.map((e) => {
+        const obras = this.obrasAdmin.filter((o) => o.escuela_id === e.id);
+        return {
+          id: e.id, nombre: e.nombre, area: e.area, total: obras.length,
+          n1: obras.filter((o) => o.nivel === 'nivel_1').length,
+          n2: obras.filter((o) => o.nivel === 'nivel_2').length,
+          n3: obras.filter((o) => o.nivel === 'nivel_3').length,
+          aprobadas: obras.filter((o) => o.estado === 'aprobada').length,
+          pendientes: obras.filter((o) => o.estado === 'pendiente').length,
+          sinPdf: obras.filter((o) => !o.tiene_pdf).length,
+        };
+      }).sort((a, b) => b.total - a.total || a.nombre.localeCompare(b.nombre, 'es', { numeric: true }));
       this.obrasAdminCargadas = true;
     },
 
