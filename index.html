@@ -2340,10 +2340,10 @@ function app() {
       if (!estadoRes.error && estadoRes.data) this.votacion = estadoRes.data;
       this.resultados = (!resultRes.error && Array.isArray(resultRes.data)) ? resultRes.data : null;
       this.obras = (!obrasRes.error && obrasRes.data) ? obrasRes.data : [];
-      // Mientras no se publiquen los resultados no se muestra ni el conteo ni el orden por votos:
-      // se mezclan las obras con un orden fijo por visita (así ninguna queda siempre primera).
-      if (this.verVotos()) this.obras.sort((a, b) => b.votos_total - a.votos_total);
-      else this.obras.sort((a, b) => this.claveOrden(a.produccion_id) - this.claveOrden(b.produccion_id));
+      // El conteo y el ranking se ven durante toda la votación (etapa 1 y final).
+      // Orden por votos; los empates (y el arranque en 0 votos) se desempatan con un orden
+      // fijo por visita, así ninguna obra queda siempre primera.
+      this.obras.sort((a, b) => (b.votos_total - a.votos_total) || (this.claveOrden(a.produccion_id) - this.claveOrden(b.produccion_id)));
       // votadoNivel viene de la BASE (fuente de verdad), no del navegador
       this.votadoNivel = {};
       if (!votosRes.error && Array.isArray(votosRes.data)) {
@@ -2352,8 +2352,9 @@ function app() {
       this.obrasCargadas = true;
     },
 
-    // Los votos solo se ven cuando los resultados están publicados (resultados_finales devuelve null antes).
-    verVotos() { return Array.isArray(this.resultados); },
+    // Los votos y el ranking se ven siempre (decisión de Betty, 15/10/2026).
+    // Los "resultados de la final" (ganadoras) siguen ocultos hasta que se publiquen.
+    verVotos() { return true; },
     claveOrden(id) {
       let h = 0;
       const t = String(id) + String(this.semillaOrden);
