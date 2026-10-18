@@ -1688,91 +1688,271 @@ function app() {
       this.informeMsg = '';
       try {
         const inf = this.informe;
-        const g = inf.generales;
-        const AZUL = '7C3AED', TINTA = '1F2A33', GRIS = '6B6483', BORDE = 'EFEAF7';
-        const pptx = new PptxGenJS();
-        pptx.author = 'Producciones Colectivas 2026';
-        pptx.title = 'Informe final — Producciones Colectivas 2026';
+      // ---------- Marca ----------
+      const C = {
+        violeta: '7C3AED', profundo: '5B21B6', noche: '3B1480', lavanda: 'E7DBFA', tarjeta: 'FBF8FF',
+        tinta: '1F2A33', suave: '6B6483', vino: '8B0A2E', verde: '3FA05C', magenta: 'D6368F',
+        ambar: 'D99A2B', oro: 'FFC145', blanco: 'FFFFFF', linea: 'D9C9F5',
+      };
+      const H = 'Baloo 2', B = 'Nunito';
+      const NIVEL = {
+        nivel_1: { n: '1', color: C.verde, curso: '1.° y 2.° año' },
+        nivel_2: { n: '2', color: C.magenta, curso: '3.° y 4.° año' },
+        nivel_3: { n: '3', color: C.ambar, curso: '5.° y 6.° año' },
+      };
+      // Fechas del cronograma (editar acá si cambian)
+      const FECHAS = {
+        carga: '5 al 20 de octubre', revision: 'Durante toda la carga',
+        etapa1: '20 al 25 de octubre', final: '2 al 8 de noviembre',
+      };
 
-        // 1. Portada
-        let s = pptx.addSlide();
-        s.background = { color: 'FAF7FD' };
-        s.addText('Producciones Colectivas 2026', { x: 0.5, y: 2.0, w: 9, h: 1, fontSize: 30, bold: true, color: AZUL, align: 'center' });
-        s.addText('Informe final', { x: 0.5, y: 3.0, w: 9, h: 0.6, fontSize: 20, color: GRIS, align: 'center' });
-        s.addText('La Matanza · Inspector Mariano Brissio', { x: 0.5, y: 5.2, w: 9, h: 0.4, fontSize: 12, color: GRIS, align: 'center' });
+      const fmt = (n) => String(n === null || n === undefined ? 0 : n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      // Nunca mostrar números sueltos (DNI) como autoría
+      const autoresSeguros = (txt) => (txt || '').split(',').map((s) => s.trim()).filter((s) => s && !/^\d{5,}$/.test(s)).join(', ');
 
-        // 2. Resumen general
-        s = pptx.addSlide();
-        s.addText('Resumen general', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
-        const alumnosEstim = (g.alumnos_con_dni || 0) + (g.alumnos_sin_dni_dedup_nombre || 0);
-        const gen = [
-          ['Escuelas participantes', `${g.escuelas_participantes} de ${g.escuelas_total}`],
-          ['Obras presentadas', String(g.obras_presentadas)],
-          ['Obras aprobadas', String(g.obras_aprobadas)],
-          ['Alumnos únicos (estimado)', String(alumnosEstim)],
-          ['   identificados por DNI', String(g.alumnos_con_dni)],
-          ['   sin DNI, deduplicados por nombre', `${g.alumnos_sin_dni_dedup_nombre} (de ${g.autores_sin_dni} autores)`],
-          ['Votantes únicos', String(g.votantes_unicos)],
-          ['Votos totales', String(g.votos_totales)],
-          ['   en la etapa 1', String(g.votos_etapa1)],
-          ['   en la final', String(g.votos_final)],
-          ['Obras finalistas', String(g.finalistas)],
-          ['Mails distintos usados para cargar', String(g.mails_distintos_carga)],
-        ];
-        s.addTable(gen.map((r) => [
-          { text: r[0], options: { color: TINTA } },
-          { text: r[1], options: { bold: true, color: AZUL, align: 'right' } },
-        ]), { x: 0.5, y: 1.0, w: 9, colW: [6, 3], fontSize: 13, rowH: 0.38, border: { type: 'solid', color: BORDE, pt: 1 } });
-        s.addText('El conteo por DNI es exacto. El resto se estima deduplicando por nombre y apellido.', { x: 0.5, y: 5.6, w: 9, h: 0.4, fontSize: 10, italic: true, color: GRIS });
+      const g = inf.generales;
+      const alumnos = (g.alumnos_con_dni || 0) + (g.alumnos_sin_dni_dedup_nombre || 0);
+      const hayVotos = (g.votos_totales || 0) > 0;
+      const MUESTRA = false;
 
-        // 3. Ganadoras por área y nivel (una diapositiva por área)
-        for (const area of [3, 4]) {
-          s = pptx.addSlide();
-          s.addText(`Área ${area} — ganadoras por nivel`, { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
-          let yy = 1.3;
-          for (const n of inf.por_nivel.filter((x) => x.area === area)) {
-            s.addText(`${this.nombreNivel(n.nivel)} — ${n.obras_compitieron} obras, ${n.votos_total} votos`, { x: 0.5, y: yy, w: 9, h: 0.4, fontSize: 14, bold: true, color: GRIS });
-            if (n.ganadora) {
-              s.addText(`"${n.ganadora.titulo}" — ${n.ganadora.escuela}  (${n.ganadora.votos} votos)`, { x: 0.8, y: yy + 0.45, w: 8.7, h: 0.4, fontSize: 15, bold: true, color: TINTA });
-              s.addText(n.ganadora.autores || '', { x: 0.8, y: yy + 0.85, w: 8.7, h: 0.35, fontSize: 11, color: GRIS });
-            } else {
-              s.addText('Sin obras aprobadas', { x: 0.8, y: yy + 0.45, w: 8.7, h: 0.4, fontSize: 12, italic: true, color: GRIS });
-            }
-            yy += 1.65;
-          }
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_WIDE'; // 13.33 x 7.5
+      pptx.author = 'Producciones Colectivas 2026';
+      pptx.title = 'Informe final — Producciones Colectivas 2026';
+      const W = 13.33, HH = 7.5;
+
+      // ---------- Helpers ----------
+      function estrella(s, x, y, d, color, transp) {
+        s.addShape(pptx.ShapeType.star4, { x, y, w: d, h: d, fill: { color, transparency: transp || 0 }, line: { type: 'none' } });
+      }
+      function fondoOscuro(s) {
+        s.background = { color: C.violeta };
+        s.addShape(pptx.ShapeType.ellipse, { x: -3.2, y: -4.2, w: 11, h: 9, fill: { color: C.profundo }, line: { type: 'none' } });
+        s.addShape(pptx.ShapeType.ellipse, { x: 9.6, y: 4.6, w: 6.5, h: 6.5, fill: { color: C.profundo, transparency: 55 }, line: { type: 'none' } });
+      }
+      function fondoClaro(s, titulo, sub) {
+        s.background = { color: C.lavanda };
+        s.addShape(pptx.ShapeType.ellipse, { x: 10.6, y: -1.6, w: 4.2, h: 4.2, fill: { color: 'D9C6F7' }, line: { type: 'none' } });
+        estrella(s, 12.2, 0.45, 0.5, C.oro);
+        estrella(s, 11.7, 1.15, 0.22, C.violeta, 30);
+        s.addText(titulo, { x: 0.6, y: 0.35, w: 10.5, h: 0.8, fontFace: H, fontSize: 32, bold: true, color: C.vino, margin: 0 });
+        if (sub) s.addText(sub, { x: 0.6, y: 1.12, w: 10.5, h: 0.45, fontFace: B, fontSize: 15, color: C.suave, margin: 0 });
+      }
+      function pie(s, oscuro) {
+        s.addText('Producciones Colectivas 2026 · Inspector Mariano Brissio · Distrital 3 · Región 3 (La Matanza)', {
+          x: 0.6, y: 7.05, w: 9.5, h: 0.3, fontFace: B, fontSize: 10, color: oscuro ? 'D9C6F7' : C.suave, margin: 0,
+        });
+        if (MUESTRA) {
+          s.addShape(pptx.ShapeType.roundRect, { x: 10.2, y: 7.0, w: 2.6, h: 0.32, rectRadius: 0.16, fill: { color: C.oro }, line: { type: 'none' } });
+          s.addText('MUESTRA · votos de ejemplo', { x: 10.2, y: 7.0, w: 2.6, h: 0.32, fontFace: B, fontSize: 10, bold: true, color: C.noche, align: 'center', valign: 'middle', margin: 0 });
         }
+      }
+      function tarjeta(s, x, y, w, h, acento) {
+        s.addShape(pptx.ShapeType.roundRect, { x, y, w, h, rectRadius: 0.18, fill: { color: C.tarjeta }, line: { color: C.linea, width: 1 },
+          shadow: { type: 'outer', color: '5B21B6', opacity: 0.12, blur: 8, offset: 3, angle: 90 } });
+        if (acento) s.addShape(pptx.ShapeType.roundRect, { x: x + 0.25, y: y + 0.22, w: 0.55, h: 0.1, rectRadius: 0.05, fill: { color: acento }, line: { type: 'none' } });
+      }
+      function circuloNum(s, x, y, d, txt, color) {
+        s.addShape(pptx.ShapeType.ellipse, { x, y, w: d, h: d, fill: { color }, line: { type: 'none' } });
+        s.addText(txt, { x, y, w: d, h: d, fontFace: H, fontSize: Math.round(d * 30), bold: true, color: C.blanco, align: 'center', valign: 'middle', margin: 0 });
+      }
 
-        // 4. Por escuela
-        s = pptx.addSlide();
-        s.addText('Por escuela', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
-        const cab = ['Escuela', 'Área', 'Obras (aprob.)', 'Mails distintos', 'Alumnos c/DNI', 'Etapa 1', 'Final', 'Votos'].map((t, i) => ({ text: t, options: { bold: true, align: i === 0 ? 'left' : 'center', color: 'FFFFFF', fill: { color: AZUL } } }));
-        const cuerpo = inf.por_escuela.map((e) => [
-          e.escuela,
-          { text: String(e.area || '—'), options: { align: 'center' } },
-          { text: `${e.obras_presentadas} (${e.obras_aprobadas})`, options: { align: 'center' } },
-          { text: String(e.mails_distintos_carga), options: { align: 'center' } },
-          { text: String(e.alumnos_con_dni), options: { align: 'center' } },
-          { text: String(e.votos_etapa1), options: { align: 'center' } },
-          { text: String(e.votos_final), options: { align: 'center' } },
-          { text: String(e.votos_total), options: { align: 'center' } },
-        ]);
-        s.addTable([cab].concat(cuerpo), { x: 0.4, y: 1.2, w: 9.2, fontSize: 10, rowH: 0.4, border: { type: 'solid', color: BORDE, pt: 1 }, autoPage: true, autoPageRepeatHeader: true });
+      // ============ 1. Portada ============
+      let s = pptx.addSlide();
+      fondoOscuro(s);
+      estrella(s, 10.7, 0.9, 0.9, C.oro);
+      estrella(s, 9.9, 1.9, 0.32, C.blanco, 55);
+      estrella(s, 1.2, 5.2, 0.28, C.blanco, 60);
+      s.addText('Producciones\nColectivas 2026', { x: 0.9, y: 1.55, w: 9.5, h: 2.5, fontFace: H, fontSize: 60, bold: true, color: C.blanco, valign: 'top', margin: 0, lineSpacingMultiple: 0.9 });
+      s.addShape(pptx.ShapeType.roundRect, { x: 0.9, y: 4.25, w: 4.6, h: 0.7, rectRadius: 0.35, fill: { color: C.oro }, line: { type: 'none' } });
+      s.addText('Informe final del recorrido', { x: 0.9, y: 4.25, w: 4.6, h: 0.7, fontFace: H, fontSize: 22, bold: true, color: C.noche, align: 'center', valign: 'middle', margin: 0 });
+      s.addText('A 50 años de la última dictadura, un espacio para compartir cuentos fantásticos y poesías sobre la memoria y la vida en democracia.', {
+        x: 0.9, y: 5.3, w: 7.6, h: 1.0, fontFace: B, fontSize: 18, color: 'EDE3FC', margin: 0, valign: 'top',
+      });
+      pie(s, true);
 
-        // 5. Comportamiento del votante
+      // ============ 2. La cifra que importa ============
+      s = pptx.addSlide();
+      fondoOscuro(s);
+      estrella(s, 11.6, 0.8, 0.6, C.oro);
+      s.addText(fmt(alumnos), { x: 0.9, y: 0.9, w: 11, h: 2.6, fontFace: H, fontSize: 130, bold: true, color: C.oro, margin: 0, valign: 'middle' });
+      s.addText('estudiantes escribieron\npara que la memoria no se apague.', { x: 0.9, y: 3.55, w: 11, h: 1.7, fontFace: H, fontSize: 40, bold: true, color: C.blanco, margin: 0, valign: 'top', lineSpacingMultiple: 0.95 });
+      s.addText(`${g.escuelas_participantes} escuelas · ${fmt(g.obras_presentadas)} obras · una misma pregunta: ¿qué recordamos a 50 años?`, {
+        x: 0.9, y: 5.5, w: 11, h: 0.5, fontFace: B, fontSize: 18, color: 'EDE3FC', margin: 0,
+      });
+      pie(s, true);
+
+      // ============ 3. El alcance ============
+      s = pptx.addSlide();
+      fondoClaro(s, 'El alcance del proyecto', 'Lo que pasó cuando las escuelas se animaron a contar');
+      const stats = [
+        { n: `${g.escuelas_participantes}`, de: ` de ${g.escuelas_total}`, t: 'escuelas participaron', c: C.violeta },
+        { n: fmt(g.obras_presentadas), t: 'obras presentadas', c: C.magenta },
+        { n: fmt(g.obras_aprobadas), t: 'obras aprobadas y publicadas', c: C.verde },
+        { n: fmt(alumnos), t: 'estudiantes autores', c: C.ambar },
+      ];
+      stats.forEach((st, i) => {
+        const x = 0.6 + i * 3.05, y = 2.15, w = 2.8, h = 3.5;
+        tarjeta(s, x, y, w, h, st.c);
+        s.addText([{ text: st.n, options: { fontSize: 54, bold: true, color: st.c } }].concat(st.de ? [{ text: st.de, options: { fontSize: 24, bold: true, color: C.suave } }] : []),
+          { x: x + 0.2, y: y + 0.65, w: w - 0.4, h: 1.5, fontFace: H, valign: 'middle', margin: 0 });
+        s.addText(st.t, { x: x + 0.25, y: y + 2.2, w: w - 0.5, h: 0.9, fontFace: B, fontSize: 18, bold: true, color: C.tinta, margin: 0, valign: 'top' });
+      });
+      s.addText('Cada obra fue revisada y aprobada antes de publicarse.', {
+        x: 0.6, y: 6.0, w: 12, h: 0.6, fontFace: B, fontSize: 14, color: C.suave, margin: 0, valign: 'top',
+      });
+      pie(s);
+
+      // ============ 4. El recorrido ============
+      s = pptx.addSlide();
+      fondoClaro(s, 'El recorrido', 'De la primera obra cargada a la votación de toda la comunidad');
+      const pasos = [
+        ['1', 'Carga de obras', FECHAS.carga, 'Cada escuela subió sus cuentos y poesías con un enlace y un código QR propios.', C.violeta],
+        ['2', 'Revisión de obras', FECHAS.revision, 'El equipo organizador revisó cada obra y pidió correcciones cuando hizo falta.', C.magenta],
+        ['3', 'Primera etapa', FECHAS.etapa1, 'La comunidad leyó, escuchó y votó una obra favorita por nivel.', C.verde],
+        ['4', 'Segunda etapa', FECHAS.final, 'La comunidad vuelve a leer, escuchar y votar entre las obras más elegidas de cada nivel.', C.ambar],
+      ];
+      s.addShape(pptx.ShapeType.line, { x: 1.4, y: 2.95, w: 10.6, h: 0, line: { color: C.violeta, width: 3, dashType: 'dash' } });
+      pasos.forEach((p, i) => {
+        const x = 0.6 + i * 3.05;
+        circuloNum(s, x + 0.75, 2.45, 1.0, p[0], p[4]);
+        tarjeta(s, x, 3.75, 2.8, 2.75, null);
+        s.addText(p[1], { x: x + 0.2, y: 3.9, w: 2.4, h: 0.5, fontFace: H, fontSize: 20, bold: true, color: C.vino, margin: 0 });
+        s.addText(p[2], { x: x + 0.2, y: 4.42, w: 2.4, h: 0.35, fontFace: B, fontSize: 13, bold: true, color: p[4], margin: 0 });
+        s.addText(p[3], { x: x + 0.2, y: 4.85, w: 2.4, h: 1.5, fontFace: B, fontSize: 14, color: C.suave, margin: 0, valign: 'top' });
+      });
+      pie(s);
+
+      // ============ 5. Dos áreas ============
+      s = pptx.addSlide();
+      fondoClaro(s, 'Dos áreas, una misma memoria', 'Escuelas de las Áreas 3 y 4 de la Región 3');
+      inf.por_area.forEach((a, i) => {
+        const x = 0.6 + i * 6.2, y = 1.95, w = 5.9, h = 4.7;
+        const col = i === 0 ? C.violeta : C.magenta;
+        tarjeta(s, x, y, w, h, col);
+        s.addText(`Área ${a.area}`, { x: x + 0.3, y: y + 0.4, w: 3, h: 0.7, fontFace: H, fontSize: 34, bold: true, color: col, margin: 0 });
+        s.addText(`${a.escuelas} escuelas`, { x: x + 3.0, y: y + 0.45, w: 2.6, h: 0.6, fontFace: B, fontSize: 18, bold: true, color: C.suave, align: 'right', margin: 0 });
+        const filas = [['Obras presentadas', fmt(a.obras_presentadas)], ['Obras aprobadas', fmt(a.obras_aprobadas)]];
+        if (hayVotos) filas.push(['Votos en la primera etapa', fmt(a.votos_etapa1)], ['Votos en la segunda etapa', fmt(a.votos_final)]);
+        filas.forEach((f, k) => {
+          const yy = y + 1.35 + k * 0.78;
+          s.addShape(pptx.ShapeType.line, { x: x + 0.3, y: yy - 0.05, w: w - 0.6, h: 0, line: { color: C.linea, width: 1 } });
+          s.addText(f[0], { x: x + 0.3, y: yy, w: 3.4, h: 0.6, fontFace: B, fontSize: 17, color: C.tinta, margin: 0, valign: 'middle' });
+          s.addText(f[1], { x: x + 3.4, y: yy, w: w - 3.7, h: 0.6, fontFace: H, fontSize: 28, bold: true, color: col, align: 'right', margin: 0, valign: 'middle' });
+        });
+      });
+      pie(s);
+
+      // ============ 6. Tres niveles ============
+      s = pptx.addSlide();
+      fondoClaro(s, 'Tres niveles, muchas voces', 'Las obras se agrupan según el año de quienes las escribieron: 1.° y 2.°, 3.° y 4.°, 5.° y 6.°');
+      ['nivel_1', 'nivel_2', 'nivel_3'].forEach((nv, i) => {
+        const x = 0.6 + i * 4.15, y = 1.95, w = 3.9, h = 4.7;
+        const info = NIVEL[nv];
+        const filas = inf.por_nivel.filter((r) => r.nivel === nv);
+        const obras = filas.reduce((a, r) => a + (r.obras_compitieron || 0), 0);
+        const votos = filas.reduce((a, r) => a + (r.votos_total || 0), 0);
+        tarjeta(s, x, y, w, h, null);
+        circuloNum(s, x + 0.35, y + 0.35, 1.0, info.n, info.color);
+        s.addText(`Nivel ${info.n}`, { x: x + 1.55, y: y + 0.38, w: 2.1, h: 0.55, fontFace: H, fontSize: 26, bold: true, color: C.tinta, margin: 0 });
+        s.addText(info.curso, { x: x + 1.55, y: y + 0.92, w: 2.1, h: 0.4, fontFace: B, fontSize: 14, color: C.suave, margin: 0 });
+        s.addText(fmt(obras), { x: x + 0.35, y: y + 1.75, w: w - 0.7, h: 1.2, fontFace: H, fontSize: 64, bold: true, color: info.color, margin: 0, valign: 'middle' });
+        s.addText('obras en este nivel', { x: x + 0.35, y: y + 2.95, w: w - 0.7, h: 0.4, fontFace: B, fontSize: 16, bold: true, color: C.tinta, margin: 0 });
+        if (hayVotos) {
+          s.addShape(pptx.ShapeType.roundRect, { x: x + 0.35, y: y + 3.65, w: 2.7, h: 0.55, rectRadius: 0.27, fill: { color: C.lavanda }, line: { type: 'none' } });
+          s.addText(`❤  ${fmt(votos)} votos`, { x: x + 0.35, y: y + 3.65, w: 2.7, h: 0.55, fontFace: B, fontSize: 16, bold: true, color: C.profundo, align: 'center', valign: 'middle', margin: 0 });
+        }
+      });
+      pie(s);
+
+      // ============ 7. Favoritas de la comunidad ============
+      s = pptx.addSlide();
+      fondoClaro(s, 'Las favoritas de la comunidad', 'Una obra destacada por nivel y por área');
+      const orden = [];
+      [3, 4].forEach((ar) => ['nivel_1', 'nivel_2', 'nivel_3'].forEach((nv) => orden.push(inf.por_nivel.find((r) => r.area === ar && r.nivel === nv))));
+      orden.forEach((r, k) => {
+        if (!r) return;
+        const col = k % 3, fila = Math.floor(k / 3);
+        const x = 0.6 + col * 4.15, y = 1.8 + fila * 2.55, w = 3.9, h = 2.35;
+        const info = NIVEL[r.nivel];
+        tarjeta(s, x, y, w, h, null);
+        circuloNum(s, x + 0.25, y + 0.22, 0.55, info.n, info.color);
+        s.addText(`Área ${r.area} · Nivel ${info.n}`, { x: x + 0.95, y: y + 0.22, w: 2.8, h: 0.55, fontFace: B, fontSize: 13, bold: true, color: C.suave, margin: 0, valign: 'middle' });
+        const gan = r.ganadora && (r.ganadora.votos > 0 || !hayVotos ? r.ganadora : null);
+        if (gan && hayVotos) {
+          s.addText(gan.titulo, { x: x + 0.25, y: y + 0.88, w: w - 0.5, h: 0.78, fontFace: H, fontSize: 18, bold: true, color: C.vino, margin: 0, valign: 'top', fit: 'shrink' });
+          const aut = autoresSeguros(gan.autores);
+          s.addText(`${gan.escuela}${aut ? ' · ' + aut : ''}`, { x: x + 0.25, y: y + 1.68, w: w - 1.75, h: 0.55, fontFace: B, fontSize: 11, color: C.suave, margin: 0, valign: 'top', fit: 'shrink' });
+          s.addShape(pptx.ShapeType.roundRect, { x: x + w - 1.45, y: y + 1.75, w: 1.25, h: 0.45, rectRadius: 0.22, fill: { color: C.oro }, line: { type: 'none' } });
+          s.addText(`❤ ${fmt(gan.votos)}`, { x: x + w - 1.45, y: y + 1.75, w: 1.25, h: 0.45, fontFace: B, fontSize: 14, bold: true, color: C.noche, align: 'center', valign: 'middle', margin: 0 });
+        } else {
+          s.addText('Se define al cierre de la votación', { x: x + 0.25, y: y + 1.0, w: w - 0.5, h: 0.9, fontFace: B, fontSize: 15, italic: true, color: C.suave, margin: 0, valign: 'middle' });
+        }
+      });
+      pie(s);
+
+      // ============ 8. Cada escuela ============
+      const esc = inf.por_escuela.slice().sort((a, b) => b.obras_presentadas - a.obras_presentadas);
+      const POR_PAG = 27;
+      const maxObras = Math.max(1, ...esc.map((e) => e.obras_presentadas));
+      for (let pg = 0; pg * POR_PAG < esc.length; pg++) {
         s = pptx.addSlide();
-        s.addText('Comportamiento del votante', { x: 0.5, y: 0.3, w: 9, h: 0.6, fontSize: 24, bold: true, color: AZUL });
-        const cv = inf.comportamiento_votantes;
-        s.addText(`Sobre ${cv.votantes_con_algun_voto} votantes con al menos un voto:`, { x: 0.5, y: 1.2, w: 9, h: 0.4, fontSize: 13, color: GRIS });
-        const cvr = [
-          ['Votó en 1 nivel', cv.voto_en_1_nivel, cv.pct_1_nivel],
-          ['Votó en 2 niveles', cv.voto_en_2_niveles, cv.pct_2_niveles],
-          ['Votó en los 3 niveles', cv.voto_en_3_niveles, cv.pct_3_niveles],
-        ];
-        s.addTable(cvr.map((r) => [
-          { text: r[0], options: { color: TINTA } },
-          { text: String(r[1]), options: { align: 'center' } },
-          { text: (r[2] === null || r[2] === undefined ? 0 : r[2]) + '%', options: { align: 'right', bold: true, color: AZUL } },
-        ]), { x: 0.5, y: 1.8, w: 9, colW: [5, 2, 2], fontSize: 14, rowH: 0.5, border: { type: 'solid', color: BORDE, pt: 1 } });
+        const nPag = Math.ceil(esc.length / POR_PAG);
+        fondoClaro(s, pg === 0 ? `${esc.length} escuelas, una voz` : `${esc.length} escuelas (${pg + 1}/${nPag})`, 'Obras presentadas por cada escuela');
+        esc.slice(pg * POR_PAG, (pg + 1) * POR_PAG).forEach((e, i) => {
+          const col = Math.floor(i / 9), fila = i % 9;
+          const x = 0.6 + col * 4.15, y = 1.75 + fila * 0.54, w = 3.9, h = 0.46;
+          const color = e.area === 3 ? C.violeta : C.magenta;
+          s.addShape(pptx.ShapeType.roundRect, { x, y, w, h, rectRadius: 0.12, fill: { color: C.tarjeta }, line: { color: C.linea, width: 0.75 } });
+          s.addShape(pptx.ShapeType.roundRect, { x: x + 0.08, y: y + 0.08, w: Math.max(0.2, (w - 0.16) * (e.obras_presentadas / maxObras)), h: h - 0.16, rectRadius: 0.08, fill: { color, transparency: 78 }, line: { type: 'none' } });
+          s.addText(e.escuela, { x: x + 0.2, y, w: 2.3, h, fontFace: B, fontSize: 13, bold: true, color: C.tinta, margin: 0, valign: 'middle' });
+          s.addText(`${fmt(e.obras_presentadas)} obras`, { x: x + 2.2, y, w: w - 2.4, h, fontFace: H, fontSize: 15, bold: true, color, align: 'right', margin: 0, valign: 'middle' });
+        });
+        // leyenda
+        s.addShape(pptx.ShapeType.ellipse, { x: 0.6, y: 6.74, w: 0.16, h: 0.16, fill: { color: C.violeta }, line: { type: 'none' } });
+        s.addText('Área 3', { x: 0.82, y: 6.67, w: 1, h: 0.3, fontFace: B, fontSize: 11, color: C.suave, margin: 0 });
+        s.addShape(pptx.ShapeType.ellipse, { x: 1.8, y: 6.74, w: 0.16, h: 0.16, fill: { color: C.magenta }, line: { type: 'none' } });
+        s.addText('Área 4', { x: 2.02, y: 6.67, w: 1, h: 0.3, fontFace: B, fontSize: 11, color: C.suave, margin: 0 });
+        pie(s);
+      }
+
+      // ============ 9. Quiénes votaron ============
+      const cv = inf.comportamiento_votantes;
+      s = pptx.addSlide();
+      fondoClaro(s, 'La comunidad votó', 'Lectores y votantes de toda la región');
+      if (hayVotos && cv.votantes_con_algun_voto > 0) {
+        s.addChart(pptx.charts.DOUGHNUT, [{ name: 'Votantes', labels: ['Votó en 1 nivel', 'Votó en 2 niveles', 'Votó en los 3 niveles'], values: [cv.voto_en_1_nivel, cv.voto_en_2_niveles, cv.voto_en_3_niveles] }], {
+          x: 0.6, y: 1.8, w: 5.2, h: 4.9, holeSize: 62, chartColors: [C.violeta, C.magenta, C.oro], showLegend: false, showLabel: false, showPercent: false, showValue: false,
+          dataBorder: { pt: 3, color: C.lavanda }, showTitle: false,
+        });
+        s.addText([{ text: fmt(cv.votantes_con_algun_voto), options: { fontSize: 34, bold: true, color: C.vino, breakLine: true } }, { text: 'votantes', options: { fontSize: 14, color: C.suave } }],
+          { x: 1.9, y: 3.7, w: 2.6, h: 1.1, fontFace: H, align: 'center', valign: 'middle', margin: 0 });
+        const filas = [['Votó en 1 nivel', cv.voto_en_1_nivel, cv.pct_1_nivel, C.violeta], ['Votó en 2 niveles', cv.voto_en_2_niveles, cv.pct_2_niveles, C.magenta], ['Votó en los 3 niveles', cv.voto_en_3_niveles, cv.pct_3_niveles, C.oro]];
+        filas.forEach((f, i) => {
+          const y = 2.05 + i * 1.0;
+          tarjeta(s, 6.5, y, 6.2, 0.85, null);
+          s.addShape(pptx.ShapeType.ellipse, { x: 6.75, y: y + 0.27, w: 0.3, h: 0.3, fill: { color: f[3] }, line: { type: 'none' } });
+          s.addText(f[0], { x: 7.25, y, w: 3.1, h: 0.85, fontFace: B, fontSize: 17, bold: true, color: C.tinta, margin: 0, valign: 'middle' });
+          s.addText(`${fmt(f[1])}  ·  ${f[2] === null || f[2] === undefined ? 0 : f[2]}%`, { x: 10.0, y, w: 2.5, h: 0.85, fontFace: H, fontSize: 20, bold: true, color: C.vino, align: 'right', margin: 0, valign: 'middle' });
+        });
+        s.addText(`${fmt(g.votos_totales)} votos en total  ·  ${fmt(g.votos_etapa1)} en la primera etapa  ·  ${fmt(g.votos_final)} en la segunda`, {
+          x: 6.5, y: 5.2, w: 6.2, h: 0.6, fontFace: B, fontSize: 15, bold: true, color: C.profundo, margin: 0, valign: 'middle',
+        });
+      } else {
+        s.addText('Los datos de votación se completan al cerrar cada etapa.', { x: 0.6, y: 3.0, w: 12, h: 1, fontFace: B, fontSize: 22, italic: true, color: C.suave, margin: 0 });
+      }
+      pie(s);
+
+      // ============ 10. Cierre ============
+      s = pptx.addSlide();
+      fondoOscuro(s);
+      estrella(s, 11.3, 0.9, 0.8, C.oro);
+      estrella(s, 10.6, 1.8, 0.3, C.blanco, 55);
+      s.addText('Memoria · Verdad · Justicia', { x: 0.9, y: 1.5, w: 11, h: 1.3, fontFace: H, fontSize: 56, bold: true, color: C.oro, margin: 0, valign: 'middle' });
+      s.addText('Escribieron con el corazón en la mano,\ndibujaron lo que a veces no se puede decir\ny le pusieron palabras al silencio.', { x: 0.9, y: 3.35, w: 10.8, h: 1.7, fontFace: B, fontSize: 24, italic: true, color: 'EDE3FC', margin: 0, valign: 'top', lineSpacingMultiple: 1.1 });
+      s.addText('Gracias, escuelas, docentes y estudiantes,\npor hacer que la memoria siga latiendo.', { x: 0.9, y: 5.05, w: 10.8, h: 1.3, fontFace: H, fontSize: 30, bold: true, color: C.blanco, margin: 0, valign: 'top', lineSpacingMultiple: 0.95 });
+      pie(s, true);
+
 
         await pptx.writeFile({ fileName: 'informe_producciones_colectivas_2026.pptx' });
         this.informeMsg = 'PowerPoint descargado.';
