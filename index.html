@@ -175,11 +175,11 @@
   .icon-circle { width: 44px; height: 44px; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
   .nav-pill { border-radius: 999px; padding: 0.55rem 1.2rem; font-weight: 700; color: var(--ink-soft); }
   .nav-pill.active { background: var(--teal); color: white; }
-  input[type=text], select, textarea {
+  input[type=text], input[type=search], select, textarea {
     border: 2px solid var(--gray-light); background: white; padding: 0.7rem 1rem;
     border-radius: 14px; width: 100%; font-family: 'Nunito', sans-serif; font-weight: 600;
   }
-  input[type=text]:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
+  input[type=text]:focus, input[type=search]:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); }
   label { font-size: 0.85rem; color: var(--ink-soft); font-weight: 700; display: block; margin-bottom: 0.4rem; }
   .step-circle { width: 32px; height: 32px; border-radius: 999px; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 0.85rem; }
   [x-cloak] { display: none !important; }
@@ -478,11 +478,11 @@
 
       <!-- Contenido del nivel elegido -->
       <div x-show="obrasCargadas && nivelPublico" x-cloak>
-        <button @click="nivelPublico = null; votoError=''; pararLectura(); reproduciendoId=null" class="text-sm font-bold mb-4" style="color: var(--teal);">‹ Cambiar de nivel</button>
+        <button @click="nivelPublico = null; votoError=''; limpiarBusquedaPublico(); pararLectura(); reproduciendoId=null" class="text-sm font-bold mb-4" style="color: var(--teal);">‹ Cambiar de nivel</button>
 
         <div class="flex gap-2 mb-2 flex-wrap">
           <template x-for="a in [3, 4]" :key="a">
-            <button @click="areaPublico = a; votoError=''; pararLectura(); reproduciendoId=null"
+            <button @click="areaPublico = a; votoError=''; limpiarBusquedaPublico(); pararLectura(); reproduciendoId=null"
                     :class="areaPublico === a ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">
               <span x-text="'Área ' + a"></span>
               <span class="text-xs opacity-80" x-text="'· ' + obrasDeNivelArea(nivelPublico, a).length"></span>
@@ -497,9 +497,27 @@
           Todavía no hay obras aprobadas en este nivel y área.
         </div>
 
+        <!-- Buscador: por título, escuela o autor -->
+        <div class="flex flex-col sm:flex-row gap-3 mb-5" x-show="obrasDeNivelArea(nivelPublico, areaPublico).length > 0" x-cloak>
+          <input type="search" x-model="busquedaPublico" placeholder="🔍 Buscar por título, escuela o autor" aria-label="Buscar obras" class="flex-1">
+          <select x-model="escuelaPublico" aria-label="Filtrar por escuela" class="sm:max-w-xs">
+            <option value="">Todas las escuelas</option>
+            <template x-for="e in escuelasDeNivelArea(nivelPublico, areaPublico)" :key="e">
+              <option :value="e" x-text="e"></option>
+            </template>
+          </select>
+          <button x-show="busquedaPublico || escuelaPublico" @click="limpiarBusquedaPublico()" class="btn-ghost text-sm !py-2 !px-3">Limpiar</button>
+        </div>
+        <p class="text-xs mb-4" style="color: var(--ink-soft);" x-show="(busquedaPublico || escuelaPublico) && obrasDeNivelArea(nivelPublico, areaPublico).length > 0" x-cloak
+           x-text="obrasFiltradasPublico(nivelPublico, areaPublico).length + ' de ' + obrasDeNivelArea(nivelPublico, areaPublico).length + ' obras'"></p>
+        <div class="card p-8 text-center text-sm mb-5" style="color: var(--ink-soft);" x-cloak
+             x-show="obrasDeNivelArea(nivelPublico, areaPublico).length > 0 && obrasFiltradasPublico(nivelPublico, areaPublico).length === 0">
+          No encontramos obras con esa búsqueda. Probá con otra palabra o con menos letras.
+        </div>
+
         <div class="grid md:grid-cols-3 gap-8" x-show="obrasDeNivelArea(nivelPublico, areaPublico).length > 0">
           <div class="md:col-span-2 grid sm:grid-cols-2 gap-5">
-            <template x-for="o in obrasDeNivelArea(nivelPublico, areaPublico)" :key="o.produccion_id">
+            <template x-for="o in obrasFiltradasPublico(nivelPublico, areaPublico)" :key="o.produccion_id">
               <div class="card" :id="'obra-' + o.produccion_id"
                    :style="o.produccion_id === obraDestacadaId ? 'outline:3px solid var(--teal);outline-offset:2px' : ''">
                 <img x-show="o.portada_path" :src="portadaUrl(o.portada_path)" loading="lazy" decoding="async" class="h-20 w-full object-cover rounded-t-[20px]">
@@ -1219,6 +1237,8 @@ function app() {
     votoError: '',
     votadoNivel: {},              // { 'nivel_1|3': id_obra, ... } — recordatorio local (la base es la que manda)
     areaPublico: 3,               // área que se está mirando en la galería (3 o 4)
+    busquedaPublico: '',          // texto del buscador de la galería (título, escuela o autor)
+    escuelaPublico: '',           // escuela elegida en el filtro de la galería ('' = todas)
     leyendoId: null,              // obra cuyo PDF se está abriendo
     reproduciendoId: null,        // obra que se está leyendo en voz alta
     pdfViendo: false,             // modal de lectura abierto
@@ -2547,6 +2567,32 @@ function app() {
     },
     obrasDeNivelArea(nivel, area) {
       return this.obras.filter(o => o.nivel === nivel && o.area === area);
+    },
+    // Buscador de la galería: sin tildes ni mayúsculas, por título, escuela o autor.
+    // Solo filtra las tarjetas; el ranking y los conteos siguen mostrando todo.
+    _normBusq(s) {
+      return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+    },
+    escuelasDeNivelArea(nivel, area) {
+      const set = new Set(this.obrasDeNivelArea(nivel, area).map(o => o.escuela_nombre).filter(Boolean));
+      return [...set].sort((a, b) => a.localeCompare(b, 'es'));
+    },
+    obrasFiltradasPublico(nivel, area) {
+      const lista = this.obrasDeNivelArea(nivel, area);
+      const q = this._normBusq(this.busquedaPublico);
+      const esc = this.escuelaPublico;
+      if (!q && !esc) return lista;
+      const palabras = q ? q.split(/\s+/) : [];
+      return lista.filter(o => {
+        if (esc && o.escuela_nombre !== esc) return false;
+        if (!palabras.length) return true;
+        const texto = this._normBusq([o.titulo, o.escuela_nombre, o.autores_publicos].join(' '));
+        return palabras.every(p => texto.includes(p));
+      });
+    },
+    limpiarBusquedaPublico() {
+      this.busquedaPublico = '';
+      this.escuelaPublico = '';
     },
     // El ranking se arma por nivel y por área (la que se está mirando).
     rankingDeNivel(nivel) {
