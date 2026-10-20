@@ -2532,7 +2532,19 @@ function app() {
     async cargarObrasPublico({ mostrarCarga = true } = {}) {
       if (mostrarCarga) this.obrasCargadas = false;
       const [obrasRes, votosRes, estadoRes, resultRes] = await Promise.all([
-        supabaseClient.from('ranking_producciones').select('*'),
+        // Supabase entrega como máximo 1.000 filas por consulta: se pide de a páginas hasta traerlas todas.
+        (async () => {
+          const filas = [];
+          const TAM = 1000;
+          for (let desde = 0; desde < 20000; desde += TAM) {
+            const r = await supabaseClient.from('ranking_producciones').select('*')
+              .order('produccion_id', { ascending: true }).range(desde, desde + TAM - 1);
+            if (r.error) return { data: null, error: r.error };
+            filas.push(...(r.data || []));
+            if (!r.data || r.data.length < TAM) break;
+          }
+          return { data: filas, error: null };
+        })(),
         supabaseClient.rpc('mis_votos'),
         supabaseClient.rpc('estado_votacion'),
         supabaseClient.rpc('resultados_finales'),
