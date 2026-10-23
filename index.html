@@ -175,6 +175,16 @@
   .icon-circle { width: 44px; height: 44px; border-radius: 999px; display: flex; align-items: center; justify-content: center; }
   .nav-pill { border-radius: 999px; padding: 0.55rem 1.2rem; font-weight: 700; color: var(--ink-soft); }
   .nav-pill.active { background: var(--teal); color: white; }
+  /* Selector de área: cada área tiene su propio color (Área 3 azul, Área 4 naranja) */
+  .area-pill { border-radius: 18px; padding: 0.7rem 1.4rem; font-weight: 800; font-size: 1.05rem; border: 3px solid; display: inline-flex; align-items: center; gap: 0.5rem; transition: transform 0.1s, background 0.15s; }
+  .area-pill:hover { transform: translateY(-1px); }
+  .area-pill.a3 { color: #1D4ED8; background: #DBEAFE; border-color: #93C5FD; }
+  .area-pill.a3.active { color: white; background: #2563EB; border-color: #1D4ED8; box-shadow: 0 4px 12px rgba(37,99,235,0.35); }
+  .area-pill.a4 { color: #C2410C; background: #FFEDD5; border-color: #FDBA74; }
+  .area-pill.a4.active { color: white; background: #EA580C; border-color: #C2410C; box-shadow: 0 4px 12px rgba(234,88,12,0.35); }
+  .area-banda { height: 8px; border-radius: 999px; margin-bottom: 1rem; }
+  .area-banda.a3 { background: #2563EB; }
+  .area-banda.a4 { background: #EA580C; }
   input[type=text], input[type=search], select, textarea {
     border: 2px solid var(--gray-light); background: white; padding: 0.7rem 1rem;
     border-radius: 14px; width: 100%; font-family: 'Nunito', sans-serif; font-weight: 600;
@@ -480,16 +490,18 @@
       <div x-show="obrasCargadas && nivelPublico" x-cloak>
         <button @click="nivelPublico = null; votoError=''; limpiarBusquedaPublico(); pararLectura(); reproduciendoId=null" class="text-sm font-bold mb-4" style="color: var(--teal);">‹ Cambiar de nivel</button>
 
-        <div class="flex gap-2 mb-2 flex-wrap">
+        <p class="text-sm font-extrabold mb-2" style="color: var(--ink);">👇 Elegí el área de la escuela</p>
+        <div class="flex gap-3 mb-2 flex-wrap">
           <template x-for="a in [3, 4]" :key="a">
             <button @click="areaPublico = a; votoError=''; limpiarBusquedaPublico(); pararLectura(); reproduciendoId=null"
-                    :class="areaPublico === a ? 'nav-pill active' : 'nav-pill'" style="border:2px solid var(--gray-light)">
+                    :class="'area-pill ' + (a === 3 ? 'a3' : 'a4') + (areaPublico === a ? ' active' : '')">
               <span x-text="'Área ' + a"></span>
-              <span class="text-xs opacity-80" x-text="'· ' + obrasDeNivelArea(nivelPublico, a).length"></span>
+              <span class="text-xs opacity-80" x-text="'· ' + obrasDeNivelArea(nivelPublico, a).length + ' obras'"></span>
             </button>
           </template>
         </div>
-        <p class="text-xs mb-4" style="color: var(--ink-soft);">Podés votar una obra por nivel en cada área.</p>
+        <p class="text-xs mb-3" style="color: var(--ink-soft);">Podés votar una obra por nivel en cada área.</p>
+        <div :class="'area-banda ' + (areaPublico === 3 ? 'a3' : 'a4')"></div>
 
         <p x-show="votoError" x-text="votoError" class="card p-3 mb-4 text-sm font-bold" style="background: var(--magenta-light); color: var(--magenta);"></p>
 
@@ -570,7 +582,7 @@
 
           <div class="card p-5 h-fit" x-show="verVotos()" x-cloak>
             <h3 class="display font-extrabold text-lg mb-1">🏆 Ranking</h3>
-            <p class="text-xs font-bold mb-3" style="color: var(--ink-soft);" x-text="nombreNivel(nivelPublico) + ' · Área ' + areaPublico"></p>
+            <p class="text-xs font-extrabold mb-3" :style="'color:' + (areaPublico === 3 ? '#1D4ED8' : '#C2410C')" x-text="nombreNivel(nivelPublico) + ' · Área ' + areaPublico"></p>
             <ol class="space-y-3">
               <template x-for="(o, i) in rankingDeNivel(nivelPublico)" :key="o.produccion_id">
                 <li class="flex items-center gap-3">
