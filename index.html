@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 <script>
@@ -1005,6 +1006,13 @@
                 <p class="text-xs mt-1" style="color: var(--ink-soft);">Uso administrativo interno. <b>No</b> forma parte de la presentación.</p>
               </div>
 
+              <div class="pt-4 border-t" style="border-color: var(--gray-light);">
+                <button class="btn-ghost text-sm" @click="descargarZipFinalistas()" :disabled="exportandoZip">
+                  <span x-text="exportandoZip ? zipProgreso : '📦 Descargar PDF de las finalistas (ZIP)'"></span>
+                </button>
+                <p class="text-xs mt-1" style="color: var(--ink-soft);">Baja los PDF de las obras finalistas, ordenados por nivel y área, con un índice.csv (escuela, curso, autores y votos). Sirve para armar el cuadernillo.</p>
+              </div>
+
               <p x-show="informeMsg" x-text="informeMsg" class="text-sm font-bold" style="color: var(--green);"></p>
             </div>
 
@@ -1331,6 +1339,8 @@ function app() {
     informeMsg: '',
     exportandoPptx: false,
     exportandoCsv: false,
+    exportandoZip: false,
+    zipProgreso: '',
 
     // Se ejecuta solo al cargar la página. Prioridad:
     //   1) ?escuela=TOKEN en la URL (intención explícita: enlace/QR)
@@ -1708,6 +1718,61 @@ function app() {
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(a.href), 5000);
       this.informeMsg = `CSV descargado — ${filas.length} votantes.`;
+    },
+
+    async descargarZipFinalistas() {
+      if (typeof JSZip === 'undefined') { this.informeError = 'No se pudo cargar la librería de ZIP.'; return; }
+      this.exportandoZip = true;
+      this.zipProgreso = 'Buscando finalistas…';
+      this.informeError = '';
+      this.informeMsg = '';
+      try {
+        const { data, error } = await supabaseClient
+          .from('producciones')
+          .select('id,titulo,nivel,curso_division,votos_total,escuelas!producciones_escuela_id_fkey(nombre,area),autores(nombre,apellido,seudonimo)')
+          .eq('finalista', true);
+        if (error) throw error;
+        const obras = (data || []).slice().sort((x, y) =>
+          String(x.nivel).localeCompare(String(y.nivel)) ||
+          ((x.escuelas && x.escuelas.area) || 0) - ((y.escuelas && y.escuelas.area) || 0) ||
+          (y.votos_total || 0) - (x.votos_total || 0));
+        if (!obras.length) { this.informeError = 'No hay obras finalistas para descargar.'; return; }
+        const limpiar = (t) => String(t || '').replace(/[^\w\sáéíóúüñÁÉÍÓÚÜÑ.-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+        const esc = (v) => {
+          const t = String(v === null || v === undefined ? '' : v);
+          return /[",\n\r;]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+        };
+        const zip = new JSZip();
+        const indice = [['orden', 'nivel', 'area', 'escuela', 'curso', 'titulo', 'autores', 'votos', 'archivo'].join(',')];
+        const fallidas = [];
+        for (let i = 0; i < obras.length; i++) {
+          const o = obras[i];
+          this.zipProgreso = 'Descargando ' + (i + 1) + ' de ' + obras.length + '…';
+          const { data: blob, error: e2 } = await supabaseClient.storage.from('obras').download(o.id + '.pdf');
+          if (e2 || !blob) { fallidas.push(o.titulo); continue; }
+          const esc_ = o.escuelas || {};
+          const nivelNum = String(o.nivel).replace('nivel_', '');
+          const nombre = String(i + 1).padStart(2, '0') + ' - N' + nivelNum + ' A' + (esc_.area || '?') + ' - ' + limpiar(esc_.nombre) + ' - ' + limpiar(o.titulo) + '.pdf';
+          zip.file(nombre, blob);
+          const autores = (o.autores || []).map((a) => ((a.nombre || '') + ' ' + (a.apellido || '')).trim() + (a.seudonimo ? ' (' + a.seudonimo + ')' : '')).join('; ');
+          indice.push([i + 1, 'Nivel ' + nivelNum, 'Área ' + (esc_.area || '?'), esc_.nombre, o.curso_division, o.titulo, autores, o.votos_total, nombre].map(esc).join(','));
+        }
+        zip.file('indice.csv', '\ufeff' + indice.join('\r\n'));
+        this.zipProgreso = 'Armando el ZIP…';
+        const out = await zip.generateAsync({ type: 'blob' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(out);
+        a.download = 'finalistas_producciones_colectivas_2026.zip';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+        this.informeMsg = 'ZIP descargado — ' + (obras.length - fallidas.length) + ' de ' + obras.length + ' PDF.' +
+          (fallidas.length ? ' No se pudieron bajar: ' + fallidas.join(', ') + '.' : '');
+      } catch (e) {
+        this.informeError = 'No se pudo armar el ZIP: ' + (e && e.message ? e.message : e);
+      } finally {
+        this.exportandoZip = false;
+        this.zipProgreso = '';
+      }
     },
 
     async exportarPptx() {
